@@ -8,12 +8,16 @@ on:
 jobs:
   build:
     runs-on: macos-14  # Xcode 16 以降が載っている環境
-    env:
-      THEOS: ${{ runner.temp }}/theos
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set THEOS path
+        id: set-theos
+        run: |
+          echo "THEOS=$RUNNER_TEMP/theos" >> $GITHUB_ENV
+          echo "path=$RUNNER_TEMP/theos" >> $GITHUB_OUTPUT
 
       - name: Install deps (brew)
         run: |
@@ -26,7 +30,7 @@ jobs:
       - name: Prepare Theos (cached)
         uses: actions/cache@v4
         with:
-          path: ${{ env.THEOS }}
+          path: ${{ steps.set-theos.outputs.path }}
           key: theos-${{ runner.os }}-v1
       - name: Clone Theos (if not cached)
         if: steps.cache.outputs.cache-hit != 'true'
