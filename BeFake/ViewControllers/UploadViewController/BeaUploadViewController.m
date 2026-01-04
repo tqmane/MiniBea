@@ -33,8 +33,43 @@ static UITabBarController *BeaFindTabController(void) {
     return nil;
 }
 
+static UIRefreshControl *BeaFindRefreshControl(void) {
+    UIWindow *window = BeaKeyWindow();
+    if (!window) return nil;
+
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:window];
+    while (stack.count > 0) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+
+        if ([view isKindOfClass:[UIRefreshControl class]] ||
+            [[[view class] description] isEqualToString:@"_UIRefreshControl"]) {
+            return (UIRefreshControl *)view;
+        }
+
+        for (UIView *sub in view.subviews) {
+            [stack addObject:sub];
+        }
+    }
+    return nil;
+}
+
 static void BeaTriggerFeedRefresh(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        UIRefreshControl *refresh = BeaFindRefreshControl();
+        if (refresh) {
+            if (![refresh isRefreshing]) {
+                [refresh beginRefreshing];
+            }
+            [refresh sendActionsForControlEvents:UIControlEventValueChanged];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if ([refresh isRefreshing]) {
+                    [refresh endRefreshing];
+                }
+            });
+            return;
+        }
+
         UITabBarController *tab = BeaFindTabController();
         if (tab && tab.viewControllers.count >= 2) {
             NSUInteger currentIndex = tab.selectedIndex;

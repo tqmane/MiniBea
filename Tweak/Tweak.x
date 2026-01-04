@@ -106,17 +106,10 @@ static void BeaEnsureUploadButton(void) {
 			}
 
 			NSMutableArray *items = top.navigationItem.rightBarButtonItems.mutableCopy ?: [NSMutableArray array];
-			if (![items containsObject:item]) {
-				// place to the left of existing right items (array is rendered right-to-left)
-				[items removeObject:item];
-				[items addObject:item];
-				top.navigationItem.rightBarButtonItems = items;
-			} else {
-				// ensure order keeps our item at the end (leftmost visually)
-				[items removeObject:item];
-				[items addObject:item];
-				top.navigationItem.rightBarButtonItems = items;
-			}
+			[items removeObject:item];
+			// append so it renders on the leftmost side of the right-bar group
+			[items addObject:item];
+			top.navigationItem.rightBarButtonItems = items;
 			attachedToNav = YES;
 		}
 
