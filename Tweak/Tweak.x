@@ -2,6 +2,8 @@
 #import <objc/runtime.h>
 
 static UIButton *beaUploadButton;
+static char kDownloadButtonKey;
+static char kNavUploadItemKey;
 
 static Class BeaClassFromNames(NSArray<NSString *> *candidates) {
 	for (NSString *name in candidates) {
@@ -80,13 +82,53 @@ static UIViewController *BeaTopViewController(void) {
 static void BeaEnsureUploadButton(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		UIWindow *window = BeaActiveWindow();
+		UIViewController *top = BeaTopViewController();
+
+		BOOL attachedToNav = NO;
+		if (top && top.navigationController) {
+			UIBarButtonItem *item = objc_getAssociatedObject(top, &kNavUploadItemKey);
+			if (!item) {
+				UIButton *navButton = [UIButton buttonWithType:UIButtonTypeSystem];
+				navButton.translatesAutoresizingMaskIntoConstraints = NO;
+				navButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.15];
+				navButton.layer.cornerRadius = 16.0;
+				navButton.layer.masksToBounds = YES;
+
+				UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightBold];
+				UIImage *plusImage = [UIImage systemImageNamed:@"plus.circle.fill" withConfiguration:config];
+				plusImage = [plusImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+				navButton.tintColor = [UIColor whiteColor];
+				[navButton setImage:plusImage forState:UIControlStateNormal];
+				[navButton.widthAnchor constraintEqualToConstant:32].active = YES;
+				[navButton.heightAnchor constraintEqualToConstant:32].active = YES;
+				[navButton addTarget:[BeaUploadLauncher class] action:@selector(presentUpload) forControlEvents:UIControlEventTouchUpInside];
+
+				item = [[UIBarButtonItem alloc] initWithCustomView:navButton];
+				objc_setAssociatedObject(top, &kNavUploadItemKey, item, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+			}
+
+			NSMutableArray *items = top.navigationItem.rightBarButtonItems.mutableCopy ?: [NSMutableArray array];
+			if (![items containsObject:item]) {
+				[items addObject:item];
+				top.navigationItem.rightBarButtonItems = items;
+			}
+			attachedToNav = YES;
+		}
+
+		if (attachedToNav) {
+			if (beaUploadButton && beaUploadButton.superview) {
+				[beaUploadButton removeFromSuperview];
+			}
+			return;
+		}
+
 		if (!window) return;
 
 		if (!beaUploadButton) {
 			beaUploadButton = [UIButton buttonWithType:UIButtonTypeCustom];
 			beaUploadButton.translatesAutoresizingMaskIntoConstraints = NO;
 			beaUploadButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.35];
-			beaUploadButton.layer.cornerRadius = 20.0;
+			beaUploadButton.layer.cornerRadius = 18.0;
 			beaUploadButton.layer.masksToBounds = YES;
 			beaUploadButton.layer.zPosition = 120;
 
@@ -100,13 +142,39 @@ static void BeaEnsureUploadButton(void) {
 		if (beaUploadButton.superview != window) {
 			[window addSubview:beaUploadButton];
 			[NSLayoutConstraint activateConstraints:@[
-				[beaUploadButton.widthAnchor constraintEqualToConstant:40],
-				[beaUploadButton.heightAnchor constraintEqualToConstant:40],
-				[beaUploadButton.trailingAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.trailingAnchor constant:-14],
-				[beaUploadButton.topAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:14]
+				[beaUploadButton.widthAnchor constraintEqualToConstant:36],
+				[beaUploadButton.heightAnchor constraintEqualToConstant:36],
+				[beaUploadButton.centerXAnchor constraintEqualToAnchor:window.centerXAnchor constant:88],
+				[beaUploadButton.topAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:8]
 			]];
 		}
 		[window bringSubviewToFront:beaUploadButton];
+	});
+}
+
+static void BeaEnsureDownloadButtonOnView(UIView *view) {
+	if (!view) return;
+
+	BeaButton *button = objc_getAssociatedObject(view, &kDownloadButtonKey);
+	if (!button) {
+		button = [BeaButton downloadButton];
+		objc_setAssociatedObject(view, &kDownloadButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+		[view addSubview:button];
+		[NSLayoutConstraint activateConstraints:@[
+			[button.trailingAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
+			[button.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:12.0]
+		]];
+	}
+	[view bringSubviewToFront:button];
+}
+
+static void BeaRemoveAdView(UIView *view) {
+	if (!view) return;
+	view.hidden = YES;
+	view.alpha = 0.0f;
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[view removeFromSuperview];
 	});
 }
 
@@ -160,19 +228,21 @@ static void BeaEnsureUploadButton(void) {
 
 - (void)layoutSubviews {
 	%orig;
+	BeaEnsureDownloadButtonOnView(self);
+}
+%end
 
-	if (![self downloadButton]) {
-		BeaButton *downloadButton = [BeaButton downloadButton];
-		downloadButton.layer.zPosition = 99;
+%hook LightWeightDoubleMediaView
+- (void)layoutSubviews {
+	%orig;
+	BeaEnsureDownloadButtonOnView(self);
+}
+%end
 
-		[self setDownloadButton:downloadButton];
-		[self addSubview:downloadButton];
-
-		[NSLayoutConstraint activateConstraints:@[
-			[[[self downloadButton] trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12.0],
-			[[[self downloadButton] topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12.0]
-		]];
-	}
+%hook LegacyDoubleMediaView
+- (void)layoutSubviews {
+	%orig;
+	BeaEnsureDownloadButtonOnView(self);
 }
 %end
 
@@ -186,6 +256,11 @@ static void BeaEnsureUploadButton(void) {
 		}
 	}
 	%orig;
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+	%orig;
+	BeaEnsureUploadButton();
 }
 %end
 
@@ -236,7 +311,8 @@ BOOL isBlockedPath(const char *path) {
 
 %hook AdvertsDataNativeViewContainer
 - (void)didMoveToSuperview {
-	[self removeFromSuperview];
+	%orig;
+	BeaRemoveAdView(self);
 }
 
 - (CGSize)sizeThatFits:(CGSize)size {
@@ -245,6 +321,48 @@ BOOL isBlockedPath(const char *path) {
 
 - (CGSize)intrinsicContentSize {
 	return CGSizeZero;
+}
+%end
+
+%hook AdvertView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinNativeView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinBottomNativeView16x9
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinDefaultNativeView16x9
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinBottomNativeView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinPartnerFeedNativeView16x9
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
 }
 %end
 
@@ -265,12 +383,16 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 %ctor {
-	Class mediaViewClass = BeaClassFromNames(@[@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl", @"_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_"]);
-	Class advertsViewClass = BeaClassFromNames(@[@"_TtC11AdvertsData25AdvertNativeViewContainer", @"AdvertsData.AdvertNativeViewContainer"]);
+	Class mediaViewClass = BeaClassFromNames(@[@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl", @"_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_", @"DoubleMediaViewUIKitLegacyImpl"]);
+	Class lightWeightClass = BeaClassFromNames(@[@"LightWeightDoubleMediaView", @"_TtC6BeReal22LightWeightDoubleMediaView"]);
+	Class legacyMediaClass = BeaClassFromNames(@[@"LegacyDoubleMediaView", @"_TtC6BeReal19LegacyDoubleMediaView"]);
+	Class advertsViewClass = BeaClassFromNames(@[@"_TtC11AdvertsData25AdvertNativeViewContainer", @"AdvertsData.AdvertNativeViewContainer", @"AdvertNativeViewContainer"]);
 	Class appDelegateClass = BeaClassFromNames(@[@"_TtC6BeReal11AppDelegate"]);
 
 	%init(
 	  DoubleMediaViewUIKitLegacyImpl = mediaViewClass,
+	  LightWeightDoubleMediaView = lightWeightClass,
+	  LegacyDoubleMediaView = legacyMediaClass,
 	  AdvertsDataNativeViewContainer = advertsViewClass,
 	  AppDelegate = appDelegateClass
 	);

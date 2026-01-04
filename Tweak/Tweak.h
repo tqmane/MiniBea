@@ -9,8 +9,35 @@ NSDictionary *headers;
 @interface AdvertsDataNativeViewContainer : UIView
 @end
 
+@interface AdvertNativeViewContainer : UIView
+@end
+
+@interface AdvertView : UIView
+@end
+
+@interface AppLovinNativeView : UIView
+@end
+
+@interface AppLovinBottomNativeView16x9 : UIView
+@end
+
+@interface AppLovinDefaultNativeView16x9 : UIView
+@end
+
+@interface AppLovinBottomNativeView : UIView
+@end
+
+@interface AppLovinPartnerFeedNativeView16x9 : UIView
+@end
+
 @interface DoubleMediaViewUIKitLegacyImpl : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
+@end
+
+@interface LightWeightDoubleMediaView : UIView
+@end
+
+@interface LegacyDoubleMediaView : UIView
 @end
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
