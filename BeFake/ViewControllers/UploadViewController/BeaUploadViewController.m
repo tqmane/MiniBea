@@ -1,6 +1,60 @@
 #import "BeaUploadViewController.h"
 #import <objc/runtime.h>
 
+static UIWindow *BeaKeyWindow(void) {
+    UIApplication *app = [UIApplication sharedApplication];
+    for (UIWindow *window in app.windows) {
+        if (window.isKeyWindow) return window;
+    }
+    for (UIWindow *window in app.windows) {
+        if (!window.isHidden) return window;
+    }
+    return app.windows.firstObject;
+}
+
+static UITabBarController *BeaFindTabController(void) {
+    UIWindow *window = BeaKeyWindow();
+    UIViewController *root = window.rootViewController;
+    NSMutableArray<UIViewController *> *stack = [NSMutableArray array];
+    if (root) [stack addObject:root];
+
+    while (stack.count > 0) {
+        UIViewController *vc = stack.lastObject;
+        [stack removeLastObject];
+        if ([vc isKindOfClass:[UITabBarController class]]) {
+            return (UITabBarController *)vc;
+        }
+        if (vc.presentedViewController) [stack addObject:vc.presentedViewController];
+        for (UIViewController *child in vc.childViewControllers) {
+            [stack addObject:child];
+        }
+        if (vc.parentViewController) [stack addObject:vc.parentViewController];
+    }
+    return nil;
+}
+
+static void BeaTriggerFeedRefresh(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UITabBarController *tab = BeaFindTabController();
+        if (tab && tab.viewControllers.count >= 2) {
+            NSUInteger currentIndex = tab.selectedIndex;
+            NSUInteger altIndex = currentIndex == 0 ? 1 : 0;
+            [tab setSelectedIndex:altIndex];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.7 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [tab setSelectedIndex:currentIndex];
+            });
+        } else if (tab && tab.viewControllers.count == 1) {
+            UIViewController *selected = tab.selectedViewController;
+            if ([selected respondsToSelector:@selector(viewWillAppear:)]) {
+                [selected viewWillAppear:NO];
+            }
+        } else {
+            // last resort, poke the app active notification to encourage refresh
+            [[NSNotificationCenter defaultCenter] postNotificationName:UIApplicationDidBecomeActiveNotification object:nil];
+        }
+    });
+}
+
 @implementation BeaUploadViewController
 
 - (instancetype)init {
@@ -579,6 +633,13 @@
     });
 
     [self resetProperties];
+
+    // auto-dismiss and refresh the feed so the post appears locally
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self dismissViewControllerAnimated:YES completion:^{
+            BeaTriggerFeedRefresh();
+        }];
+    });
 }
 
 - (void)resetProperties {
