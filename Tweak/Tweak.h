@@ -40,6 +40,12 @@ NSDictionary *headers;
 @interface LegacyDoubleMediaView : UIView
 @end
 
+@interface NewDoubleMediaView : UIView
+@end
+
+@interface ReadOnlyOtherPostDoubleMediaView : UIView
+@end
+
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 @end
 

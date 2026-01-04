@@ -163,12 +163,18 @@ static void BeaEnsureDownloadButtonOnView(UIView *view) {
 	BeaButton *button = objc_getAssociatedObject(view, &kDownloadButtonKey);
 	if (!button) {
 		button = [BeaButton downloadButton];
+		button.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.4];
+		button.layer.cornerRadius = 16;
+		button.layer.masksToBounds = YES;
+		button.layer.zPosition = 200;
 		objc_setAssociatedObject(view, &kDownloadButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
 		[view addSubview:button];
 		[NSLayoutConstraint activateConstraints:@[
 			[button.trailingAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-			[button.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:12.0]
+			[button.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:12.0],
+			[button.widthAnchor constraintEqualToConstant:34.0],
+			[button.heightAnchor constraintEqualToConstant:34.0]
 		]];
 	}
 	[view bringSubviewToFront:button];
@@ -245,6 +251,20 @@ static void BeaRemoveAdView(UIView *view) {
 %end
 
 %hook LegacyDoubleMediaView
+- (void)layoutSubviews {
+	%orig;
+	BeaEnsureDownloadButtonOnView(self);
+}
+%end
+
+%hook NewDoubleMediaView
+- (void)layoutSubviews {
+	%orig;
+	BeaEnsureDownloadButtonOnView(self);
+}
+%end
+
+%hook ReadOnlyOtherPostDoubleMediaView
 - (void)layoutSubviews {
 	%orig;
 	BeaEnsureDownloadButtonOnView(self);
@@ -391,6 +411,8 @@ BOOL isBlockedPath(const char *path) {
 	Class mediaViewClass = BeaClassFromNames(@[@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl", @"_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_", @"DoubleMediaViewUIKitLegacyImpl"]);
 	Class lightWeightClass = BeaClassFromNames(@[@"LightWeightDoubleMediaView", @"_TtC6BeReal22LightWeightDoubleMediaView"]);
 	Class legacyMediaClass = BeaClassFromNames(@[@"LegacyDoubleMediaView", @"_TtC6BeReal19LegacyDoubleMediaView"]);
+	Class newMediaClass = BeaClassFromNames(@[@"NewDoubleMediaView", @"_TtC14RealComponents19NewDoubleMediaView"]);
+	Class readOnlyMediaClass = BeaClassFromNames(@[@"ReadOnlyOtherPostDoubleMediaView", @"_TtC14RealComponents27ReadOnlyOtherPostDoubleMediaView"]);
 	Class advertsViewClass = BeaClassFromNames(@[@"_TtC11AdvertsData25AdvertNativeViewContainer", @"AdvertsData.AdvertNativeViewContainer", @"AdvertNativeViewContainer"]);
 	Class appDelegateClass = BeaClassFromNames(@[@"_TtC6BeReal11AppDelegate"]);
 
@@ -398,6 +420,8 @@ BOOL isBlockedPath(const char *path) {
 	  DoubleMediaViewUIKitLegacyImpl = mediaViewClass,
 	  LightWeightDoubleMediaView = lightWeightClass,
 	  LegacyDoubleMediaView = legacyMediaClass,
+	  NewDoubleMediaView = newMediaClass,
+	  ReadOnlyOtherPostDoubleMediaView = readOnlyMediaClass,
 	  AdvertsDataNativeViewContainer = advertsViewClass,
 	  AppDelegate = appDelegateClass
 	);
