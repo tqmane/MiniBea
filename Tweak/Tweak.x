@@ -90,9 +90,7 @@ static void BeaEnsureUploadButton(void) {
 			if (!item) {
 				UIButton *navButton = [UIButton buttonWithType:UIButtonTypeSystem];
 				navButton.translatesAutoresizingMaskIntoConstraints = NO;
-				navButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.15];
-				navButton.layer.cornerRadius = 16.0;
-				navButton.layer.masksToBounds = YES;
+				navButton.backgroundColor = [UIColor clearColor];
 
 				UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightBold];
 				UIImage *plusImage = [UIImage systemImageNamed:@"plus.circle.fill" withConfiguration:config];
@@ -109,6 +107,13 @@ static void BeaEnsureUploadButton(void) {
 
 			NSMutableArray *items = top.navigationItem.rightBarButtonItems.mutableCopy ?: [NSMutableArray array];
 			if (![items containsObject:item]) {
+				// place to the left of existing right items (array is rendered right-to-left)
+				[items removeObject:item];
+				[items addObject:item];
+				top.navigationItem.rightBarButtonItems = items;
+			} else {
+				// ensure order keeps our item at the end (leftmost visually)
+				[items removeObject:item];
 				[items addObject:item];
 				top.navigationItem.rightBarButtonItems = items;
 			}
@@ -144,8 +149,8 @@ static void BeaEnsureUploadButton(void) {
 			[NSLayoutConstraint activateConstraints:@[
 				[beaUploadButton.widthAnchor constraintEqualToConstant:36],
 				[beaUploadButton.heightAnchor constraintEqualToConstant:36],
-				[beaUploadButton.centerXAnchor constraintEqualToAnchor:window.centerXAnchor constant:88],
-				[beaUploadButton.topAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:8]
+				[beaUploadButton.trailingAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.trailingAnchor constant:-12],
+				[beaUploadButton.topAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:10]
 			]];
 		}
 		[window bringSubviewToFront:beaUploadButton];
