@@ -48,11 +48,34 @@ jobs:
           ln -sfn "$THEOS/sdks/iPhoneOS18.0.sdk" "$THEOS/sdks/iPhoneOS.sdk"
           echo "SDK ready at $THEOS/sdks/iPhoneOS18.0.sdk"
 
-      - name: Build (jailed)
+      - name: Build packages (include legacy 0.2 variants)
         run: |
           export THEOS_PLATFORM_SDK_ROOT="$THEOS/sdks/iPhoneOS18.0.sdk"
           export FAKEROOT=  # disable fakeroot on arm64e runners
+          rm -rf packages
+
+          echo "Build default (0.2.1) rootful"
+          make clean package FINALPACKAGE=1 THEOS="$THEOS"
+
+          echo "Build default (0.2.1) jailed"
           make clean package FINALPACKAGE=1 JAILED=1 THEOS="$THEOS"
+          jailed_default="packages/com.yan.minibea_0.2.1_iphoneos-arm.deb"
+          if [ -f "$jailed_default" ]; then
+            mv "$jailed_default" "${jailed_default%.deb}_jailed.deb"
+          fi
+
+          echo "Build legacy v0.2 rootless (arm64)"
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
+
+          echo "Build legacy v0.2 jailed"
+          make clean package FINALPACKAGE=1 JAILED=1 THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
+          jailed_legacy="packages/com.yan.minibea_0.2_iphoneos-arm.deb"
+          if [ -f "$jailed_legacy" ]; then
+            mv "$jailed_legacy" "${jailed_legacy%.deb}_jailed.deb"
+          fi
+
+          echo "Packages produced:"
+          ls -l packages
 
       - name: Upload debs
         uses: actions/upload-artifact@v4
