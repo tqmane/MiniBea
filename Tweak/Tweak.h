@@ -9,6 +9,13 @@ NSDictionary *headers;
 @interface AdvertsDataNativeViewContainer : UIView
 @end
 
+@interface DoubleMediaViewUIKitLegacyImpl : UIView
+@property (nonatomic, strong) BeaButton *downloadButton;
+@end
+
+@interface AppDelegate : UIResponder <UIApplicationDelegate>
+@end
+
 @interface PAGDeviceHelper : NSObject
 + (BOOL)bu_isJailBroken;
 @end
@@ -19,15 +26,6 @@ NSDictionary *headers;
 + (BOOL)isJailbroken;
 @end
 
-@interface HomeViewController : UIViewController
-@property (nonatomic, retain) UIImageView *ibNavBarLogoImageView;
-- (void)showVersionAlert;
-@end
-
 @interface CAFilter : NSObject
 @property (copy) NSString *name;
-@end
-
-@interface MediaView : UIView
-@property (nonatomic, strong) BeaButton *downloadButton;
 @end

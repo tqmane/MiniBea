@@ -5,18 +5,35 @@
 	UIButton *button = (UIButton *)sender;
 	UIImageView *imageView = nil;
 
-    UIView *superview = button.superview;
+    UIView *container = button.superview;
+    while (container && ![container isKindOfClass:[UIWindow class]] && !imageView) {
+        NSMutableArray *foundImageViews = [NSMutableArray array];
+        [self findViewsOfClass:@"SDAnimatedImageView" inView:container result:foundImageViews];
+        for (UIImageView *candidate in foundImageViews) {
+            if (!candidate.hidden && candidate.alpha > 0.01 && candidate.image) {
+                imageView = candidate;
+                break;
+            }
+        }
+        container = container.superview;
+    }
 
-    NSMutableArray *foundImageViews = [NSMutableArray array];
-    UIView *root = superview.subviews.firstObject.subviews.firstObject;
-
-    [self findViewsOfClass:@"SDAnimatedImageView" inView:root result:foundImageViews];
-
-    imageView = foundImageViews.firstObject;
+    if (!imageView && button.window) {
+        NSMutableArray *windowImages = [NSMutableArray array];
+        [self findViewsOfClass:@"SDAnimatedImageView" inView:button.window result:windowImages];
+        for (UIImageView *candidate in windowImages) {
+            if (!candidate.hidden && candidate.alpha > 0.01 && candidate.image) {
+                imageView = candidate;
+                break;
+            }
+        }
+    }
 
 	if (imageView) {
 		UIImage *imageToSave = imageView.image;
 		UIImageWriteToSavedPhotosAlbum(imageToSave, self, @selector(image:didFinishSavingWithError:contextInfo:), (__bridge void *)button);
+	} else {
+		NSLog(@"[Bea] Could not find image view to save.");
 	}
 }
 
@@ -29,7 +46,7 @@
     // since we have a DoubleMediaView, there are two SDAnimatedImageViews but only one is visible at a time
     // since the SDAnimatedImageView doesn't get hidden but instead their parent's parent's parent superview
     // we need to check if the view is hidden and if it is, we don't need to check its subviews
-    if ([view alpha] == 0) {
+    if ([view isHidden] || [view alpha] == 0) {
         return;
     }
     // Recursively check all subviews

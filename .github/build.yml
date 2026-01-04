@@ -1,0 +1,57 @@
+name: build-minibea
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-14  # Xcode 16 以降が載っている環境
+    env:
+      THEOS: ${{ runner.temp }}/theos
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps (brew)
+        run: |
+          brew update
+          brew install dpkg ldid gnu-sed gawk fakeroot re2c
+
+      - name: Set Xcode path
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Prepare Theos (cached)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.THEOS }}
+          key: theos-${{ runner.os }}-v1
+      - name: Clone Theos (if not cached)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: git clone --recursive https://github.com/theos/theos.git "$THEOS"
+
+      - name: Link iOS SDK (prefer 18.0)
+        run: |
+          SDK_BASE="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs"
+          SDK_PATH="$(ls -d ${SDK_BASE}/iPhoneOS18*.sdk 2>/dev/null | head -n1)"
+          if [ -z "$SDK_PATH" ]; then
+            echo "iPhoneOS18.x SDK not found. Available SDKs:" >&2
+            ls -d ${SDK_BASE}/iPhoneOS*.sdk >&2
+            exit 1
+          fi
+          mkdir -p "$THEOS/sdks"
+          ln -sfn "$SDK_PATH" "$THEOS/sdks/iPhoneOS18.0.sdk"
+          echo "Using SDK: $SDK_PATH"
+
+      - name: Build (jailed)
+        run: |
+          export THEOS_PLATFORM_SDK_ROOT="$THEOS/sdks/iPhoneOS18.0.sdk"
+          make clean package FINALPACKAGE=1 JAILED=1 THEOS="$THEOS"
+
+      - name: Upload debs
+        uses: actions/upload-artifact@v4
+        with:
+          name: minibea-debs
+          path: packages/*.deb
