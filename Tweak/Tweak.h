@@ -30,6 +30,18 @@ NSDictionary *headers;
 @interface AppLovinPartnerFeedNativeView16x9 : UIView
 @end
 
+@interface AppLovinMRECView : UIView
+@end
+
+@interface AppLovinAdView : UIView
+@end
+
+@interface MAAdView : UIView
+@end
+
+@interface MANativeAdView : UIView
+@end
+
 @interface DoubleMediaViewUIKitLegacyImpl : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
 @end

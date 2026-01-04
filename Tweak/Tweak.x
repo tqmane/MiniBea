@@ -361,6 +361,11 @@ BOOL isBlockedPath(const char *path) {
 	%orig;
 	BeaRemoveAdView(self);
 }
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
 %end
 
 %hook AppLovinBottomNativeView16x9
@@ -382,10 +387,68 @@ BOOL isBlockedPath(const char *path) {
 	%orig;
 	BeaRemoveAdView(self);
 }
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
 %end
 
 %hook AppLovinPartnerFeedNativeView16x9
 - (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinMRECView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook AppLovinAdView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook MAAdView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+
+- (void)layoutSubviews {
+	%orig;
+	BeaRemoveAdView(self);
+}
+%end
+
+%hook MANativeAdView
+- (void)didMoveToSuperview {
+	%orig;
+	BeaRemoveAdView(self);
+}
+
+- (void)layoutSubviews {
 	%orig;
 	BeaRemoveAdView(self);
 }
@@ -414,6 +477,10 @@ BOOL isBlockedPath(const char *path) {
 	Class newMediaClass = BeaClassFromNames(@[@"NewDoubleMediaView", @"_TtC14RealComponents19NewDoubleMediaView"]);
 	Class readOnlyMediaClass = BeaClassFromNames(@[@"ReadOnlyOtherPostDoubleMediaView", @"_TtC14RealComponents27ReadOnlyOtherPostDoubleMediaView"]);
 	Class advertsViewClass = BeaClassFromNames(@[@"_TtC11AdvertsData25AdvertNativeViewContainer", @"AdvertsData.AdvertNativeViewContainer", @"AdvertNativeViewContainer"]);
+	Class maAdViewClass = BeaClassFromNames(@[@"MAAdView", @"AppLovinSDK.MAAdView"]);
+	Class maNativeClass = BeaClassFromNames(@[@"MANativeAdView", @"AppLovinSDK.MANativeAdView"]);
+	Class appLovinMrecClass = BeaClassFromNames(@[@"AppLovinMRECView", @"ALSdk.AppLovinMRECView"]);
+	Class appLovinAdViewClass = BeaClassFromNames(@[@"AppLovinAdView"]);
 	Class appDelegateClass = BeaClassFromNames(@[@"_TtC6BeReal11AppDelegate"]);
 
 	%init(
@@ -423,6 +490,10 @@ BOOL isBlockedPath(const char *path) {
 	  NewDoubleMediaView = newMediaClass,
 	  ReadOnlyOtherPostDoubleMediaView = readOnlyMediaClass,
 	  AdvertsDataNativeViewContainer = advertsViewClass,
+	  MAAdView = maAdViewClass,
+	  MANativeAdView = maNativeClass,
+	  AppLovinMRECView = appLovinMrecClass,
+	  AppLovinAdView = appLovinAdViewClass,
 	  AppDelegate = appDelegateClass
 	);
 }
