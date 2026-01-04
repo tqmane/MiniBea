@@ -39,12 +39,13 @@ jobs:
       - name: Link iOS SDK (prefer 18.0)
         run: |
           SDK_BASE="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs"
+          # prefer 18.x, fallback to latest available
           SDK_PATH="$(ls -d ${SDK_BASE}/iPhoneOS18*.sdk 2>/dev/null | head -n1)"
           if [ -z "$SDK_PATH" ]; then
-            echo "iPhoneOS18.x SDK not found. Available SDKs:" >&2
-            ls -d ${SDK_BASE}/iPhoneOS*.sdk >&2
-            exit 1
+            SDK_PATH="$(ls -d ${SDK_BASE}/iPhoneOS*.sdk 2>/dev/null | sort -V | tail -n1)"
           fi
+          echo "Available SDKs:" >&2
+          ls -d ${SDK_BASE}/iPhoneOS*.sdk >&2
           mkdir -p "$THEOS/sdks"
           ln -sfn "$SDK_PATH" "$THEOS/sdks/iPhoneOS18.0.sdk"
           echo "Using SDK: $SDK_PATH"
