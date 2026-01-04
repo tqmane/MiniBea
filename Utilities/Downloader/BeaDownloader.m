@@ -9,24 +9,14 @@
     while (container && ![container isKindOfClass:[UIWindow class]] && !imageView) {
         NSMutableArray *foundImageViews = [NSMutableArray array];
         [self findViewsOfClass:@"SDAnimatedImageView" inView:container result:foundImageViews];
-        for (UIImageView *candidate in foundImageViews) {
-            if (!candidate.hidden && candidate.alpha > 0.01 && candidate.image) {
-                imageView = candidate;
-                break;
-            }
-        }
+        imageView = [self visibleTopmostImageViewFrom:foundImageViews relativeTo:button.window];
         container = container.superview;
     }
 
     if (!imageView && button.window) {
         NSMutableArray *windowImages = [NSMutableArray array];
         [self findViewsOfClass:@"SDAnimatedImageView" inView:button.window result:windowImages];
-        for (UIImageView *candidate in windowImages) {
-            if (!candidate.hidden && candidate.alpha > 0.01 && candidate.image) {
-                imageView = candidate;
-                break;
-            }
-        }
+        imageView = [self visibleTopmostImageViewFrom:windowImages relativeTo:button.window];
     }
 
 	if (imageView) {
@@ -53,6 +43,34 @@
     for (UIView *subview in view.subviews) {
         [self findViewsOfClass:className inView:subview result:result];
     }
+}
+
++ (UIImageView *)visibleTopmostImageViewFrom:(NSArray<UIImageView *> *)candidates relativeTo:(UIWindow *)window {
+    UIImageView *best = nil;
+    CGFloat bestScore = -CGFLOAT_MAX;
+
+    for (UIImageView *candidate in candidates) {
+        if (!candidate.image) continue;
+        if (candidate.isHidden || candidate.alpha < 0.05) continue;
+
+        CGRect frameInWindow = [candidate.superview convertRect:candidate.frame toView:window];
+        CGFloat visibleArea = fabs(frameInWindow.size.width * frameInWindow.size.height);
+        if (visibleArea <= 0.0) continue;
+
+        // Depth = number of superviews to window; lower depth => more foreground
+        NSInteger depth = 0;
+        UIView *walker = candidate;
+        while (walker && walker != window) {
+            depth++;
+            walker = walker.superview;
+        }
+        CGFloat score = visibleArea - (depth * 10.0f);
+        if (score > bestScore) {
+            bestScore = score;
+            best = candidate;
+        }
+    }
+    return best;
 }
 
 + (void)image:(UIImage *)image didFinishSavingWithError:(NSError *)error contextInfo:(void *)contextInfo {
