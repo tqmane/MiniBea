@@ -268,6 +268,36 @@ static BOOL isBlockedPath(const char *path) {
 }
 %end
 
+// CRITICAL: Capture authorization headers from BeReal API requests
+// This is required for BeFake upload functionality
+%hook NSMutableURLRequest
+- (void)setAllHTTPHeaderFields:(NSDictionary *)arg1 {
+	%orig;
+	
+	// Check if this is a BeReal API request with authorization
+	if ([[arg1 allKeys] containsObject:@"Authorization"] && 
+		[[arg1 allKeys] containsObject:@"bereal-device-id"] && 
+		!headers) {
+		if ([arg1[@"Authorization"] length] > 0) {
+			headers = (NSDictionary *)arg1;
+			[[BeaTokenManager sharedInstance] setHeaders:headers];
+			NSLog(@"[MiniBea] Captured BeReal authorization headers");
+		}
+	}
+}
+%end
+
+// Remove blur effect from BeReals (allows viewing without posting)
+%hook CAFilter
+- (void)setValue:(id)arg1 forKey:(id)arg2 {
+	// Remove the blur that gets applied to BeReals
+	if ([self.name isEqualToString:@"gaussianBlur"] && [arg2 isEqualToString:@"inputRadius"]) {
+		return;
+	}
+	%orig;
+}
+%end
+
 // BeReal 4.58.0 - MainTabBarController for upload button
 %hook MainTabBarController
 - (void)viewDidLoad {
