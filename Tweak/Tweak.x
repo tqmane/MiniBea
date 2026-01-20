@@ -621,28 +621,34 @@ static BOOL isBlockedPath(const char *path) {
 		return;
 	}
 	
-	// Check size - post images are typically large
+	// Check size - post images are typically large (at least 150x150)
 	CGSize size = selfView.frame.size;
-	if (size.width < 100 || size.height < 100) return;
+	if (size.width < 150 || size.height < 150) return;
 	
 	// Check if image is loaded
 	if (!selfView.image) return;
 	
-	// Check parent hierarchy for post-related views
-	BOOL isPostImage = NO;
+	// Exclude very small aspect ratio images (likely UI elements, not photos)
+	CGFloat aspectRatio = size.width / size.height;
+	if (aspectRatio < 0.3 || aspectRatio > 3.0) return;
+	
+	// Exclude images that are clearly navigation/UI elements by checking class hierarchy
+	BOOL shouldExclude = NO;
 	UIView *checkView = [selfView superview];
 	int depth = 0;
 	
-	while (checkView && depth < 25) {
+	while (checkView && depth < 10) {
 		NSString *parentClass = NSStringFromClass([checkView class]);
 		
-		if ([parentClass containsString:@"POV"] ||
-			[parentClass containsString:@"Post"] ||
-			[parentClass containsString:@"Feed"] ||
-			[parentClass containsString:@"DoubleMedia"] ||
-			[parentClass containsString:@"Media"] ||
-			[parentClass containsString:@"Cell"]) {
-			isPostImage = YES;
+		// Exclude navigation bars, tab bars, toolbars, alerts
+		if ([parentClass containsString:@"NavBar"] ||
+			[parentClass containsString:@"NavigationBar"] ||
+			[parentClass containsString:@"TabBar"] ||
+			[parentClass containsString:@"ToolBar"] ||
+			[parentClass containsString:@"Alert"] ||
+			[parentClass containsString:@"Keyboard"] ||
+			[parentClass containsString:@"StatusBar"]) {
+			shouldExclude = YES;
 			break;
 		}
 		
@@ -650,9 +656,11 @@ static BOOL isBlockedPath(const char *path) {
 		depth++;
 	}
 	
-	if (!isPostImage) return;
+	if (shouldExclude) return;
 	
-	NSLog(@"[MiniBea] SDAnimatedImageView: Adding download button (size: %.0fx%.0f)", size.width, size.height);
+	// Log for debugging
+	NSString *parentClassName = selfView.superview ? NSStringFromClass([selfView.superview class]) : @"nil";
+	NSLog(@"[MiniBea] SDAnimatedImageView: Adding download button (size: %.0fx%.0f, parent: %@)", size.width, size.height, parentClassName);
 	
 	BeaButton *downloadButton = [BeaButton downloadButton];
 	objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -687,6 +695,122 @@ static BOOL isBlockedPath(const char *path) {
 %end
 
 %end // end group SDImageHooks
+
+
+// ============================================
+// UIIMAGEVIEW HOOKS GROUP - Fallback for non-SDAnimatedImageView
+// ============================================
+%group UIImageViewHooks
+
+%hook UIImageView
+
+- (void)setImage:(UIImage *)image {
+	%orig;
+	
+	if (!image) return;
+	
+	// Delay to ensure frame is set
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[self performSelector:@selector(minibeaCheckAndAddButtonForUIImageView)];
+	});
+}
+
+- (void)layoutSubviews {
+	%orig;
+	
+	// Also check on layout changes
+	if (self.image) {
+		[self performSelector:@selector(minibeaCheckAndAddButtonForUIImageView)];
+	}
+}
+
+%new
+- (void)minibeaCheckAndAddButtonForUIImageView {
+	// Skip if this is actually an SDAnimatedImageView (handled separately)
+	NSString *className = NSStringFromClass([self class]);
+	if ([className containsString:@"SDAnimated"]) return;
+	
+	// Check if already has button
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
+	if (existingButton) {
+		[self bringSubviewToFront:existingButton];
+		return;
+	}
+	
+	// Check size - post images are large
+	CGSize size = self.frame.size;
+	if (size.width < 150 || size.height < 150) return;
+	
+	// Check if image is loaded
+	if (!self.image) return;
+	
+	// Exclude very small aspect ratio images
+	CGFloat aspectRatio = size.width / size.height;
+	if (aspectRatio < 0.3 || aspectRatio > 3.0) return;
+	
+	// Check parent hierarchy to exclude UI elements
+	BOOL shouldExclude = NO;
+	UIView *checkView = self.superview;
+	int depth = 0;
+	
+	while (checkView && depth < 10) {
+		NSString *parentClass = NSStringFromClass([checkView class]);
+		
+		// Exclude navigation, tab bars, toolbars, alerts, buttons
+		if ([parentClass containsString:@"NavBar"] ||
+			[parentClass containsString:@"NavigationBar"] ||
+			[parentClass containsString:@"TabBar"] ||
+			[parentClass containsString:@"ToolBar"] ||
+			[parentClass containsString:@"Alert"] ||
+			[parentClass containsString:@"Keyboard"] ||
+			[parentClass containsString:@"StatusBar"] ||
+			[parentClass containsString:@"Button"] ||
+			[parentClass containsString:@"Picker"]) {
+			shouldExclude = YES;
+			break;
+		}
+		
+		checkView = checkView.superview;
+		depth++;
+	}
+	
+	if (shouldExclude) return;
+	
+	NSString *parentClassName = self.superview ? NSStringFromClass([self.superview class]) : @"nil";
+	NSLog(@"[MiniBea] UIImageView: Adding download button (size: %.0fx%.0f, class: %@, parent: %@)", size.width, size.height, className, parentClassName);
+	
+	BeaButton *downloadButton = [BeaButton downloadButton];
+	objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	
+	[self setUserInteractionEnabled:YES];
+	[self addSubview:downloadButton];
+	
+	// Position in top-right corner
+	[NSLayoutConstraint activateConstraints:@[
+		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:10],
+		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-10],
+		[[downloadButton widthAnchor] constraintEqualToConstant:32],
+		[[downloadButton heightAnchor] constraintEqualToConstant:32]
+	]];
+	
+	downloadButton.layer.zPosition = 9999;
+	[self bringSubviewToFront:downloadButton];
+}
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
+	if (existingButton) {
+		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
+		if ([existingButton pointInside:buttonPoint withEvent:event]) {
+			return existingButton;
+		}
+	}
+	return %orig;
+}
+
+%end
+
+%end // end group UIImageViewHooks
 
 
 // ============================================
@@ -797,4 +921,8 @@ static BOOL isBlockedPath(const char *path) {
     } else {
         NSLog(@"[MiniBea] WARNING: SDAnimatedImageView class not found!");
     }
+    
+    // UIImageView hooks as fallback for all image views
+    NSLog(@"[MiniBea] Initializing UIImageView hooks");
+    %init(UIImageViewHooks);
 }
