@@ -111,7 +111,8 @@
 // ============================================
 
 // Updated for BeReal 4.58.0 - HomeViewHostingController replaces HomeViewController
-%hook HomeViewHostingController
+// Note: This uses the Objective-C visible name, Logos will find the Swift class
+%hook _TtC6BeReal25HomeViewHostingController
 - (void)viewDidLoad {
 	%orig;
 	
@@ -208,7 +209,8 @@
 }
 %end
 
-%hook MediaView
+// Legacy SwiftUI MediaView for older BeReal versions
+%hook _TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_
 %property (nonatomic, strong) BeaButton *downloadButton;
 
 - (void)drawRect:(CGRect)rect {
@@ -244,7 +246,7 @@
 %end
 
 // BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents framework
-%hook DoubleMediaViewUIKitLegacyImpl
+%hook _TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl
 %property (nonatomic, strong) BeaButton *downloadButton;
 
 - (void)layoutSubviews {
@@ -301,7 +303,8 @@
 }
 %end
 
-%hook DoubleMediaView
+// Legacy DoubleMediaView for older BeReal versions
+%hook _TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView
 - (BOOL)isUserInteractionEnabled {
 	// This prevent us from using the reaction&comment button if we always return yes (although it allows us to switch images when not posted yet)
 	// so only apply it to the desired element
@@ -489,7 +492,7 @@ BOOL isBlockedPath(const char *path) {
 // ============================================
 
 // BeReal 4.58.0 - BlurStateUseCaseImpl controls whether posts are blurred
-%hook BlurStateUseCaseImpl
+%hook _TtC18FeedsFeatureDomain20BlurStateUseCaseImpl
 - (BOOL)isBlurred {
 	return NO;
 }
@@ -505,7 +508,7 @@ BOOL isBlockedPath(const char *path) {
 // ADVERTISEMENT REMOVAL
 // ============================================
 
-%hook AdvertsDataNativeViewContainer
+%hook _TtC11AdvertsData25AdvertNativeViewContainer
 - (void)didMoveToSuperview {
     [self removeFromSuperview];
 }
@@ -520,30 +523,7 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 %ctor {
-	// Get classes with fallbacks for different BeReal versions
-	Class homeViewHostingClass = objc_getClass("BeReal.HomeViewHostingController");
-	if (!homeViewHostingClass) {
-		homeViewHostingClass = objc_getClass("_TtC6BeReal25HomeViewHostingController");
-	}
-	
-	Class doubleMediaClass = objc_getClass("_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl");
-	Class mediaViewClass = objc_getClass("_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_");
-	Class doubleMediaViewClass = objc_getClass("_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView");
-	Class homeViewControllerClass = objc_getClass("BeReal.HomeViewController");
-	Class advertsContainerClass = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer");
-	
-	// BlurState for removing "Post to View" overlay
-	Class blurStateClass = objc_getClass("_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl");
-	
-	// Initialize all hooks - only hooks for existing classes will be active
-	%init(
-		DoubleMediaViewUIKitLegacyImpl = doubleMediaClass,
-		HomeViewHostingController = homeViewHostingClass,
-		MediaView = mediaViewClass,
-		DoubleMediaView = doubleMediaViewClass,
-		HomeViewController = homeViewControllerClass,
-		AdvertsDataNativeViewContainer = advertsContainerClass,
-		BlurStateUseCaseImpl = blurStateClass
-	);
+	// Simply initialize all hooks - Logos will ignore hooks for non-existent classes
+	%init;
 }
 }
