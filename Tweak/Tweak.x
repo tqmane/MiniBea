@@ -121,18 +121,6 @@
 
 %new
 - (void)setupUploadButton {
-	// Try to find the navigation bar or add button to the view hierarchy
-	UIView *targetView = nil;
-	
-	// Search for the navigation bar logo or suitable container
-	for (UIView *subview in [[self view] subviews]) {
-		if ([subview isKindOfClass:[UIStackView class]] || 
-			[NSStringFromClass([subview class]) containsString:@"NavBar"]) {
-			targetView = subview;
-			break;
-		}
-	}
-	
 	// Create upload button
 	UIButton *uploadButton = [UIButton buttonWithType:UIButtonTypeSystem];
 	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24];

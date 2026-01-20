@@ -7,5 +7,3 @@
 @property (nonatomic, strong) UIView *wrapperView;
 @property (nonatomic, strong) UILabel *versionLabel;
 @end
-
-#define TWEAK_VERSION @"1.3.7"
