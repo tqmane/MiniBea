@@ -1,0 +1,89 @@
+name: build-minibea
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-14  # Xcode 16 以降が載っている環境
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set THEOS path
+        id: set-theos
+        run: |
+          echo "THEOS=$RUNNER_TEMP/theos" >> $GITHUB_ENV
+          echo "path=$RUNNER_TEMP/theos" >> $GITHUB_OUTPUT
+
+      - name: Install deps (brew)
+        run: |
+          brew update
+          brew install dpkg ldid gnu-sed gawk re2c
+
+      - name: Set Xcode path
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Prepare Theos (cached)
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: ${{ steps.set-theos.outputs.path }}
+          key: theos-${{ runner.os }}-v1
+      - name: Clone Theos (if not cached)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: git clone --recursive https://github.com/theos/theos.git "$THEOS"
+
+      - name: Download iOS 18.0 SDK
+        run: |
+          SDK_URL="https://github.com/xybp888/iOS-SDKs/releases/download/iOS18.0-SDKs/iPhoneOS18.0.sdk.zip"
+          SDK_ARCHIVE="$RUNNER_TEMP/iPhoneOS18.0.sdk.zip"
+          SDK_DIR="$THEOS/sdks/iPhoneOS18.0.sdk"
+          mkdir -p "$THEOS/sdks"
+          if [ ! -d "$SDK_DIR" ]; then
+            echo "Fetching iOS 18.0 SDK..."
+            curl -L --fail --retry 5 --retry-delay 2 "$SDK_URL" -o "$SDK_ARCHIVE"
+            unzip -o -q "$SDK_ARCHIVE" -d "$THEOS/sdks"
+          else
+            echo "Using cached SDK at $SDK_DIR"
+          fi
+          ln -sfn "$SDK_DIR" "$THEOS/sdks/iPhoneOS.sdk"
+          echo "SDK ready at $SDK_DIR"
+
+      - name: Build packages (include legacy 0.2 variants)
+        run: |
+          export THEOS_PLATFORM_SDK_ROOT="$THEOS/sdks/iPhoneOS18.0.sdk"
+          export FAKEROOT=  # disable fakeroot on arm64e runners
+          rm -rf packages
+
+          echo "Build default (0.2.1) rootful"
+          make clean package FINALPACKAGE=1 THEOS="$THEOS"
+
+          echo "Build default (0.2.1) jailed"
+          make clean package FINALPACKAGE=1 JAILED=1 THEOS="$THEOS"
+          jailed_default="packages/com.yan.minibea_0.2.1_iphoneos-arm.deb"
+          if [ -f "$jailed_default" ]; then
+            mv "$jailed_default" "${jailed_default%.deb}_jailed.deb"
+          fi
+
+          echo "Build legacy v0.2 rootless (arm64)"
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
+
+          echo "Build legacy v0.2 jailed"
+          make clean package FINALPACKAGE=1 JAILED=1 THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
+          jailed_legacy="packages/com.yan.minibea_0.2_iphoneos-arm.deb"
+          if [ -f "$jailed_legacy" ]; then
+            mv "$jailed_legacy" "${jailed_legacy%.deb}_jailed.deb"
+          fi
+
+          echo "Packages produced:"
+          ls -l packages
+
+      - name: Upload debs
+        uses: actions/upload-artifact@v4
+        with:
+          name: minibea-debs
+          path: packages/*.deb
