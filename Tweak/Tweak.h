@@ -113,6 +113,11 @@ NSDictionary *headers;
 @interface DoubleMediaView : UIView
 @end
 
+// Legacy DoubleMediaView SwiftUI (for user interaction)
+@interface DoubleMediaViewLegacy : UIView
+- (NSString *)accessibilityIdentifier;
+@end
+
 // ============================================
 // BLUR STATE CLASSES
 // ============================================

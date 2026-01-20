@@ -309,7 +309,7 @@
 %end
 
 // Legacy DoubleMediaView for older BeReal versions
-%hook _TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView
+%hook DoubleMediaViewLegacy
 - (BOOL)isUserInteractionEnabled {
 	// This prevent us from using the reaction&comment button if we always return yes (although it allows us to switch images when not posted yet)
 	// so only apply it to the desired element
@@ -503,6 +503,7 @@ BOOL isBlockedPath(const char *path) {
 		HomeViewHostingController = objc_getClass("_TtC6BeReal25HomeViewHostingController"),
 		MediaViewHosting = objc_getClass("_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_"),
 		DoubleMediaViewUIKitLegacyImpl = objc_getClass("_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl"),
+		DoubleMediaViewLegacy = objc_getClass("_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView"),
 		BlurStateUseCaseImpl = objc_getClass("_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl"),
 		AdvertNativeViewContainer = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer")
 	);
