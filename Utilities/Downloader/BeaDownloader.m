@@ -56,25 +56,31 @@
 }
 
 + (void)image:(UIImage *)image didFinishSavingWithError:(NSError *)error contextInfo:(void *)contextInfo {
-    if (error) {
-        NSLog(@"[Bea]Error saving image: %@", error.localizedDescription);
-    } else {
-        UIButton *button = (__bridge UIButton *)contextInfo;
-		UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:19];
-		UIImage *checkmarkImage = [UIImage systemImageNamed:@"checkmark.circle.fill" withConfiguration:config];
-		[UIView transitionWithView:button duration:0.2 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
-		[button setImage:checkmarkImage forState:UIControlStateNormal];
-		[button setEnabled:NO]; 
-		[button.imageView setTintColor:[UIColor colorWithRed:122.0/255.0 green:255.0/255.0 blue:108.0/255.0 alpha:1.0]];} completion:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (error) {
+            NSLog(@"[Bea]Error saving image: %@", error.localizedDescription);
+        } else {
+            UIButton *button = (__bridge UIButton *)contextInfo;
+            // Check if button is still valid/visible effectively isn't possible easily with void*, 
+            // but dispatch_async helps if checked against nil (though bridge cast doesn't nil check)
+            if (!button) return;
 
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-			UIImage *downloadImage = [UIImage systemImageNamed:@"arrow.down.circle.fill" withConfiguration:config];
-			[UIView transitionWithView:button duration:0.2 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
-				[button setImage:downloadImage forState:UIControlStateNormal];
-				[button.imageView setTintColor:[UIColor whiteColor]];
-				[button setEnabled:YES];
-			} completion:nil];
-        });
-    }
+            UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:19];
+            UIImage *checkmarkImage = [UIImage systemImageNamed:@"checkmark.circle.fill" withConfiguration:config];
+            [UIView transitionWithView:button duration:0.2 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
+            [button setImage:checkmarkImage forState:UIControlStateNormal];
+            [button setEnabled:NO]; 
+            [button.imageView setTintColor:[UIColor colorWithRed:122.0/255.0 green:255.0/255.0 blue:108.0/255.0 alpha:1.0]];} completion:nil];
+
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                UIImage *downloadImage = [UIImage systemImageNamed:@"arrow.down.circle.fill" withConfiguration:config];
+                [UIView transitionWithView:button duration:0.2 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
+                    [button setImage:downloadImage forState:UIControlStateNormal];
+                    [button.imageView setTintColor:[UIColor whiteColor]];
+                    [button setEnabled:YES];
+                } completion:nil];
+            });
+        }
+    });
 }
 @end

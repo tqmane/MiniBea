@@ -1,7 +1,13 @@
 #import "BeaUploadTask.h"
 
+@interface BeaUploadTask ()
+@property (nonatomic, strong) UIImage *rawFrontImage;
+@property (nonatomic, strong) UIImage *rawBackImage;
+@end
+
 @implementation BeaUploadTask
 NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
+    if (!image) return nil;
     CGFloat compressionFactor = 1.0;
     NSData *imageData = UIImageJPEGRepresentation(image, compressionFactor);
 
@@ -10,7 +16,7 @@ NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
         return imageData;
     }
     
-    while (imageData.length > targetDataSize && compressionFactor > 0.0) {
+    while (imageData.length > targetDataSize && compressionFactor > 0.1) {
         compressionFactor -= 0.1;
         imageData = UIImageJPEGRepresentation(image, compressionFactor);
     }
@@ -40,12 +46,10 @@ NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
         self.userDictionary = data;
 
         self.headers = [[BeaTokenManager sharedInstance] headers];
-
-        UIImage *resizedFrontImage = [self resizeImage:frontImage toSize:CGSizeMake(1500, 2000)];
-        UIImage *resizedBackImage = [self resizeImage:backImage toSize:CGSizeMake(1500, 2000)];
-
-        self.frontImageData = compressImage(resizedFrontImage, 1048576);
-        self.backImageData = compressImage(resizedBackImage, 1048576);
+        
+        // Store raw images for async processing later
+        self.rawFrontImage = frontImage;
+        self.rawBackImage = backImage;
     }
     return self;
 }
@@ -56,41 +60,57 @@ NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
 }
 
 - (void)uploadBeRealWithCompletion:(void (^)(BOOL success, NSError *error))completion {
+    // Perform compression asynchronously to avoid blocking the main thread
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        UIImage *resizedFrontImage = [self resizeImage:self.rawFrontImage toSize:CGSizeMake(1500, 2000)];
+        UIImage *resizedBackImage = [self resizeImage:self.rawBackImage toSize:CGSizeMake(1500, 2000)];
 
-    [self getRegion];
-
-    // BeReal 4.58.0 uses a new endpoint for multi-format uploads
-    // Try new endpoint first, fallback to legacy endpoint if needed
-    NSURL *uploadRequestURL = [NSURL URLWithString:@"https://mobile-l7.bereal.com/api/content/posts/multi-format-upload-url?mimeType=image/webp"];
-    NSMutableURLRequest *uploadRequest = [NSMutableURLRequest requestWithURL:uploadRequestURL];
-    [uploadRequest setHTTPMethod:@"GET"];
-    
-    // Add updated headers for BeReal 4.58.0
-    [self.headers enumerateKeysAndObjectsUsingBlock:^(NSString *field, NSString *value, BOOL *stop) {
-        [uploadRequest setValue:value forHTTPHeaderField:field];
-    }];
-    
-    // Add additional headers that may be required in newer versions
-    NSString *osVersion = [[UIDevice currentDevice] systemVersion];
-    [uploadRequest setValue:@"4.58.0-(458000)" forHTTPHeaderField:@"bereal-app-version"];
-    [uploadRequest setValue:osVersion forHTTPHeaderField:@"bereal-os-version"];
-    [uploadRequest setValue:[[NSTimeZone localTimeZone] name] forHTTPHeaderField:@"bereal-timezone"];
-
-    NSURLSession *session = [NSURLSession sharedSession];
-    NSURLSessionDataTask *uploadRequestTask = [session dataTaskWithRequest:uploadRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *getError) {
-        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-        NSDictionary *uploadRequestResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        self.frontImageData = compressImage(resizedFrontImage, 1048576);
+        self.backImageData = compressImage(resizedBackImage, 1048576);
         
-        // If new endpoint fails, try legacy endpoint
-        if (httpResponse.statusCode == 404 || uploadRequestResponse[@"error"] || getError) {
-            [self tryLegacyUploadWithCompletion:completion];
-        } else {
-            [self makePUTRequestWithData:uploadRequestResponse completion:completion];
-        } 
-    }];
+        // Once compressed, proceed with the upload logic
+        [self getRegion];
 
-    [uploadRequestTask resume];
+        // BeReal 4.58.0 uses a new endpoint for multi-format uploads
+        // Try new endpoint first, fallback to legacy endpoint if needed
+        NSURL *uploadRequestURL = [NSURL URLWithString:@"https://mobile-l7.bereal.com/api/content/posts/multi-format-upload-url?mimeType=image/webp"];
+        NSMutableURLRequest *uploadRequest = [NSMutableURLRequest requestWithURL:uploadRequestURL];
+        [uploadRequest setHTTPMethod:@"GET"];
+        
+        // Add updated headers for BeReal 4.58.0
+        [self.headers enumerateKeysAndObjectsUsingBlock:^(NSString *field, NSString *value, BOOL *stop) {
+            [uploadRequest setValue:value forHTTPHeaderField:field];
+        }];
+        
+        // Add additional headers that may be required in newer versions
+        dispatch_async(dispatch_get_main_queue(), ^{
+             // System version access theoretically should be main thread? 
+             // UIDevice properties are usually thread-safe but let's be safe if we access specific things.
+             // Actually, UIDevice currentDevice is thread safe.
+             // But we are constructing the request.
+             // We can continue on background thread.
+        });
+             
+        NSString *osVersion = [[UIDevice currentDevice] systemVersion];
+        [uploadRequest setValue:@"4.58.0-(458000)" forHTTPHeaderField:@"bereal-app-version"];
+        [uploadRequest setValue:osVersion forHTTPHeaderField:@"bereal-os-version"];
+        [uploadRequest setValue:[[NSTimeZone localTimeZone] name] forHTTPHeaderField:@"bereal-timezone"];
 
+        NSURLSession *session = [NSURLSession sharedSession];
+        NSURLSessionDataTask *uploadRequestTask = [session dataTaskWithRequest:uploadRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *getError) {
+            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+            NSDictionary *uploadRequestResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            
+            // If new endpoint fails, try legacy endpoint
+            if (httpResponse.statusCode == 404 || uploadRequestResponse[@"error"] || getError) {
+                [self tryLegacyUploadWithCompletion:completion];
+            } else {
+                [self makePUTRequestWithData:uploadRequestResponse completion:completion];
+            } 
+        }];
+
+        [uploadRequestTask resume];
+    });
 }
 
 // Fallback to legacy upload-url endpoint for older API versions
