@@ -34,7 +34,7 @@
 %end
 
 // BeReal's own JailbreakCheck class (new in 4.58.0)
-%hook JailbreakCheck
+%hook _TtC6BeReal14JailbreakCheck
 - (BOOL)isJailbroken {
 	return NO;
 }
@@ -45,6 +45,12 @@
 	return NO;
 }
 + (BOOL)check {
+	return NO;
+}
+- (BOOL)isJailbreak {
+	return NO;
+}
++ (BOOL)isJailbreak {
 	return NO;
 }
 %end
@@ -332,27 +338,24 @@
 // FILE SYSTEM JAILBREAK DETECTION BYPASS
 // ============================================
 
+// Helper to check if current call is from BeReal bundle
+static BOOL isCalledFromBeReal(void) {
+    NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
+    return [bundleId isEqualToString:@"AlexisBarreyat.BeReal"];
+}
+
 BOOL isBlockedPath(const char *path) {
     if (!path) return NO;
     
+    // Only block paths when called from BeReal
+    if (!isCalledFromBeReal()) return NO;
+    
     NSString *pathStr = @(path);
     
-    // Rootless jailbreak paths (Dopamine, palera1n, etc.)
-    if ([pathStr hasPrefix:@"/var/jb/"] || 
-        [pathStr hasPrefix:@"/var/jb"] ||
-        [pathStr hasPrefix:@"/private/preboot/"] || 
-        [pathStr hasPrefix:@"/private/var/jb"] ||
-        [pathStr hasPrefix:@"/private/var/lib/apt"] ||
-        [pathStr hasPrefix:@"/private/var/lib/cydia"] ||
-        [pathStr hasPrefix:@"/private/var/stash"] ||
-        [pathStr hasPrefix:@"/private/var/tmp/cydia"] ||
-        [pathStr hasPrefix:@"/var/LIB/"] ||
-        [pathStr hasPrefix:@"/var/cache/apt"] ||
-        [pathStr hasPrefix:@"/var/lib/dpkg"] ||
-        [pathStr hasPrefix:@"/usr/lib/TweakInject"] ||
-        [pathStr hasPrefix:@"/Library/TweakInject"] ||
-        [pathStr hasPrefix:@"/Library/MobileSubstrate"]) {
-        return YES;
+    // Don't block paths that the tweak itself might need
+    if ([pathStr containsString:@"Bea.bundle"] || 
+        [pathStr containsString:@"MiniBea"]) {
+        return NO;
     }
     
     NSArray *jbPaths = @[
@@ -376,55 +379,27 @@ BOOL isBlockedPath(const char *path) {
         @"/Library/MobileSubstrate/DynamicLibraries",
         @"/usr/lib/libhooker.dylib",
         @"/usr/lib/libsubstitute.dylib",
-        @"/usr/lib/substrate",
-        @"/usr/lib/TweakInject",
         // System daemons
         @"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
         @"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
-        // Unix binaries
+        // Unix binaries that indicate jailbreak
         @"/bin/bash",
-        @"/bin/sh",
         @"/usr/sbin/sshd",
         @"/usr/bin/sshd",
-        @"/usr/libexec/sftp-server",
-        @"/usr/bin/ssh",
-        @"/etc/ssh/sshd_config",
         @"/etc/apt",
-        @"/etc/apt/sources.list.d",
-        @"/etc/apt/sources.list.d/sileo.sources",
-        @"/etc/apt/sources.list.d/cydia.list",
-        // Package managers
-        @"/private/var/lib/apt",
-        @"/private/var/lib/apt/",
-        @"/private/var/lib/cydia",
-        @"/var/lib/dpkg/info",
-        @"/var/cache/apt",
         // Test files
         @"/private/jailbreak.test",
-        @"/var/mobile/Library/Preferences/ABPattern",
-        @"/var/tmp/cydia.log",
-        // Rootless paths
-        @"/var/jb",
-        @"/var/jb/usr/lib",
-        @"/var/jb/Library/LaunchDaemons",
-        // Common tweaks
-        @"/Library/PreferenceBundles",
-        @"/Library/PreferenceLoader",
-        @"/Library/Themes",
-        // Binaries
-        @"/usr/bin/cycript",
-        @"/usr/local/bin/cycript",
-        @"/usr/lib/libcycript.dylib"
+        @"/var/tmp/cydia.log"
     ];
 
     for (NSString *jbPath in jbPaths) {
-        if ([pathStr isEqualToString:jbPath] || [pathStr hasPrefix:[jbPath stringByAppendingString:@"/"]]) {
+        if ([pathStr isEqualToString:jbPath]) {
             return YES;
         }
     }
     
-    // Check for common jailbreak-related substrings
-    NSArray *jbSubstrings = @[@"cydia", @"substrate", @"substitute", @"sileo", @"zebra", @"libhooker", @"TweakInject", @"jailbreak"];
+    // Check for common jailbreak-related substrings (but not ones that affect tweaks)
+    NSArray *jbSubstrings = @[@"cydia", @"sileo", @"zebra", @"jailbreak"];
     for (NSString *substr in jbSubstrings) {
         if ([pathStr.lowercaseString containsString:substr]) {
             return YES;
@@ -525,5 +500,4 @@ BOOL isBlockedPath(const char *path) {
 %ctor {
 	// Simply initialize all hooks - Logos will ignore hooks for non-existent classes
 	%init;
-}
 }
