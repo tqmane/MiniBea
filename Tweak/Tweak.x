@@ -539,4 +539,3 @@ BOOL isBlockedPath(const char *path) {
 	  AdvertsDataNativeViewContainer = advertsContainerClass
 	);
 }
-}

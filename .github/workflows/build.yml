@@ -60,22 +60,23 @@ jobs:
           rm -rf packages
           mkdir -p packages
 
-          echo "=== Building rootful package (arm64 + arm64e) ==="
+          echo "=== Building rootful package (arm64 + arm64e) - Traditional Jailbreak ==="
           make clean package FINALPACKAGE=1 THEOS="$THEOS"
           # Move and rename rootful package
           for f in packages/*.deb; do
             if [[ -f "$f" ]] && [[ "$f" != *"_rootful.deb" ]]; then
-              mv "$f" "${f%.deb}_rootful.deb"
+              mv "$f" "${f%.deb}_arm.deb"
             fi
           done
 
-          echo "=== Building rootless package (arm64 only) ==="
+          echo "=== Building rootless package (arm64 only) - Rootless Jailbreak ==="
           make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless THEOS="$THEOS"
+          # Rootless packages are automatically named with _iphoneos-arm64
 
-          echo "=== Building jailed/sideload package ==="
+          echo "=== Building jailed package (arm64 + arm64e) - Non-Jailbreak/Sideload ==="
           make clean package FINALPACKAGE=1 JAILED=1 THEOS="$THEOS"
           # Rename the newest deb (jailed) to distinguish it
-          newest_deb=$(ls -t packages/*.deb 2>/dev/null | grep -v "_rootful\|_rootless" | head -1)
+          newest_deb=$(ls -t packages/*.deb 2>/dev/null | grep -v "_arm\.deb\|_iphoneos-arm64" | head -1)
           if [[ -n "$newest_deb" ]] && [[ -f "$newest_deb" ]]; then
             mv "$newest_deb" "${newest_deb%.deb}_jailed.deb"
             echo "Renamed jailed: $newest_deb"
