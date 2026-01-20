@@ -250,6 +250,24 @@
 - (void)layoutSubviews {
 	%orig;
 
+	// Hide "Post to View" overlay views - find and hide blur overlays
+	for (UIView *subview in [self subviews]) {
+		// Hide blur effect views and overlay text
+		if ([NSStringFromClass([subview class]) containsString:@"Blur"] ||
+			[NSStringFromClass([subview class]) containsString:@"VisualEffect"] ||
+			[NSStringFromClass([subview class]) containsString:@"Overlay"]) {
+			[subview setHidden:YES];
+			[subview setAlpha:0];
+		}
+		// Also check nested subviews
+		for (UIView *nested in [subview subviews]) {
+			if ([NSStringFromClass([nested class]) containsString:@"Label"] ||
+				[NSStringFromClass([nested class]) containsString:@"Text"]) {
+				[nested setHidden:YES];
+			}
+		}
+	}
+
 	// Add download button if not already added
 	if (![self downloadButton]) {
 		BeaButton *downloadButton = [BeaButton downloadButton];
@@ -258,8 +276,10 @@
 		[self addSubview:downloadButton];
 
 		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-11.6],
-			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:11.6]
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
+			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self bottomAnchor] constant:-12],
+			[[downloadButton widthAnchor] constraintEqualToConstant:32],
+			[[downloadButton heightAnchor] constraintEqualToConstant:32]
 		]];
 	}
 	
@@ -270,21 +290,9 @@
 - (void)didMoveToSuperview {
 	%orig;
 	
-	// Alternative place to add download button
-	if ([self superview] && ![self downloadButton]) {
-		dispatch_async(dispatch_get_main_queue(), ^{
-			if (![self downloadButton]) {
-				BeaButton *downloadButton = [BeaButton downloadButton];
-				downloadButton.layer.zPosition = 999;
-				[self setDownloadButton:downloadButton];
-				[self addSubview:downloadButton];
-
-				[NSLayoutConstraint activateConstraints:@[
-					[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-11.6],
-					[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:11.6]
-				]];
-			}
-		});
+	// Trigger layout to add download button
+	if ([self superview]) {
+		[self setNeedsLayout];
 	}
 }
 
@@ -477,6 +485,23 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 // ============================================
+// BLUR STATE BYPASS - Remove "Post to View" overlay
+// ============================================
+
+// BeReal 4.58.0 - BlurStateUseCaseImpl controls whether posts are blurred
+%hook BlurStateUseCaseImpl
+- (BOOL)isBlurred {
+	return NO;
+}
+- (BOOL)isBlurredState {
+	return NO;
+}
+- (id)blurState {
+	return nil;
+}
+%end
+
+// ============================================
 // ADVERTISEMENT REMOVAL
 // ============================================
 
@@ -495,18 +520,10 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 %ctor {
-	// Initialize with nil checks to prevent crashes on class lookup failures
-	
 	// Get classes with fallbacks for different BeReal versions
 	Class homeViewHostingClass = objc_getClass("BeReal.HomeViewHostingController");
 	if (!homeViewHostingClass) {
 		homeViewHostingClass = objc_getClass("_TtC6BeReal25HomeViewHostingController");
-	}
-	
-	// Jailbreak detection class (new in 4.58.0)
-	Class jailbreakCheckClass = objc_getClass("_TtC6BeReal14JailbreakCheck");
-	if (!jailbreakCheckClass) {
-		jailbreakCheckClass = objc_getClass("BeReal.JailbreakCheck");
 	}
 	
 	Class doubleMediaClass = objc_getClass("_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl");
@@ -515,22 +532,18 @@ BOOL isBlockedPath(const char *path) {
 	Class homeViewControllerClass = objc_getClass("BeReal.HomeViewController");
 	Class advertsContainerClass = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer");
 	
-	// Use placeholder class for nil values to prevent crashes
-	Class placeholderClass = [NSObject class];
+	// BlurState for removing "Post to View" overlay
+	Class blurStateClass = objc_getClass("_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl");
 	
+	// Initialize all hooks - only hooks for existing classes will be active
 	%init(
-		// Jailbreak detection bypass - these may or may not exist
-		JailbreakCheck = jailbreakCheckClass ?: placeholderClass,
-		// BeReal 4.58.0 - New UIKit-based DoubleMediaView from RealComponents
-		DoubleMediaViewUIKitLegacyImpl = doubleMediaClass ?: placeholderClass,
-		// BeReal 4.58.0 - HomeViewHostingController
-		HomeViewHostingController = homeViewHostingClass ?: placeholderClass,
-		// Legacy SwiftUI MediaView (for older versions < 4.58.0)
-		MediaView = mediaViewClass ?: placeholderClass,
-		DoubleMediaView = doubleMediaViewClass ?: placeholderClass,
-		// Legacy HomeViewController (for older versions)
-		HomeViewController = homeViewControllerClass ?: placeholderClass,
-		// Ads container - Updated class name for 4.58.0
-		AdvertsDataNativeViewContainer = advertsContainerClass ?: placeholderClass
+		DoubleMediaViewUIKitLegacyImpl = doubleMediaClass,
+		HomeViewHostingController = homeViewHostingClass,
+		MediaView = mediaViewClass,
+		DoubleMediaView = doubleMediaViewClass,
+		HomeViewController = homeViewControllerClass,
+		AdvertsDataNativeViewContainer = advertsContainerClass,
+		BlurStateUseCaseImpl = blurStateClass
 	);
+}
 }

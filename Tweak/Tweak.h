@@ -105,3 +105,14 @@ NSDictionary *headers;
 // Legacy DoubleMediaView
 @interface DoubleMediaView : UIView
 @end
+
+// ============================================
+// BLUR STATE CLASSES
+// ============================================
+
+// BeReal 4.58.0 - BlurStateUseCaseImpl controls post blur state
+@interface BlurStateUseCaseImpl : NSObject
+- (BOOL)isBlurred;
+- (BOOL)isBlurredState;
+- (id)blurState;
+@end
