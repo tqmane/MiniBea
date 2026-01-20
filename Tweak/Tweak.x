@@ -93,8 +93,10 @@
 // Prevent canOpenURL checks for jailbreak apps
 %hook UIApplication
 - (BOOL)canOpenURL:(NSURL *)url {
+	if (!url) return %orig;
 	NSArray *blockedSchemes = @[@"cydia", @"sileo", @"zebra", @"filza", @"undecimus", @"activator"];
 	NSString *scheme = [url scheme];
+	if (!scheme) return %orig;
 	for (NSString *blocked in blockedSchemes) {
 		if ([scheme isEqualToString:blocked]) {
 			return NO;
@@ -423,42 +425,42 @@ BOOL isBlockedPath(const char *path) {
 
 %hook NSFileManager
 - (BOOL)fileExistsAtPath:(NSString *)path {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         return NO;
     }
     return %orig;
 }
 
 - (BOOL)fileExistsAtPath:(NSString *)path isDirectory:(BOOL *)isDirectory {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         return NO;
     }
     return %orig;
 }
 
 - (BOOL)isReadableFileAtPath:(NSString *)path {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         return NO;
     }
     return %orig;
 }
 
 - (BOOL)isWritableFileAtPath:(NSString *)path {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         return NO;
     }
     return %orig;
 }
 
 - (BOOL)isExecutableFileAtPath:(NSString *)path {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         return NO;
     }
     return %orig;
 }
 
 - (NSArray *)contentsOfDirectoryAtPath:(NSString *)path error:(NSError **)error {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
         return nil;
     }
@@ -466,7 +468,7 @@ BOOL isBlockedPath(const char *path) {
 }
 
 - (NSDictionary *)attributesOfItemAtPath:(NSString *)path error:(NSError **)error {
-    if (isBlockedPath([path UTF8String])) {
+    if (path && isBlockedPath([path UTF8String])) {
         if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
         return nil;
     }
@@ -493,6 +495,8 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 %ctor {
+	// Initialize with nil checks to prevent crashes on class lookup failures
+	
 	// Get classes with fallbacks for different BeReal versions
 	Class homeViewHostingClass = objc_getClass("BeReal.HomeViewHostingController");
 	if (!homeViewHostingClass) {
@@ -511,19 +515,22 @@ BOOL isBlockedPath(const char *path) {
 	Class homeViewControllerClass = objc_getClass("BeReal.HomeViewController");
 	Class advertsContainerClass = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer");
 	
+	// Use placeholder class for nil values to prevent crashes
+	Class placeholderClass = [NSObject class];
+	
 	%init(
-	  // BeReal 4.58.0 - Jailbreak detection bypass
-	  JailbreakCheck = jailbreakCheckClass,
-	  // BeReal 4.58.0 - New UIKit-based DoubleMediaView from RealComponents
-	  DoubleMediaViewUIKitLegacyImpl = doubleMediaClass,
-	  // BeReal 4.58.0 - HomeViewHostingController
-	  HomeViewHostingController = homeViewHostingClass,
-	  // Legacy SwiftUI MediaView (for older versions < 4.58.0)
-	  MediaView = mediaViewClass,
-	  DoubleMediaView = doubleMediaViewClass,
-	  // Legacy HomeViewController (for older versions)
-      HomeViewController = homeViewControllerClass,
-	  // Ads container - Updated class name for 4.58.0
-	  AdvertsDataNativeViewContainer = advertsContainerClass
+		// Jailbreak detection bypass - these may or may not exist
+		JailbreakCheck = jailbreakCheckClass ?: placeholderClass,
+		// BeReal 4.58.0 - New UIKit-based DoubleMediaView from RealComponents
+		DoubleMediaViewUIKitLegacyImpl = doubleMediaClass ?: placeholderClass,
+		// BeReal 4.58.0 - HomeViewHostingController
+		HomeViewHostingController = homeViewHostingClass ?: placeholderClass,
+		// Legacy SwiftUI MediaView (for older versions < 4.58.0)
+		MediaView = mediaViewClass ?: placeholderClass,
+		DoubleMediaView = doubleMediaViewClass ?: placeholderClass,
+		// Legacy HomeViewController (for older versions)
+		HomeViewController = homeViewControllerClass ?: placeholderClass,
+		// Ads container - Updated class name for 4.58.0
+		AdvertsDataNativeViewContainer = advertsContainerClass ?: placeholderClass
 	);
 }
