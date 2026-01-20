@@ -339,8 +339,14 @@
 
 // Helper to check if current call is from BeReal bundle
 static BOOL isCalledFromBeReal(void) {
-    NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
-    return [bundleId isEqualToString:@"AlexisBarreyat.BeReal"];
+    static BOOL cached = NO;
+    static BOOL isBeReal = NO;
+    if (!cached) {
+        NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
+        isBeReal = [bundleId isEqualToString:@"AlexisBarreyat.BeReal"];
+        cached = YES;
+    }
+    return isBeReal;
 }
 
 BOOL isBlockedPath(const char *path) {
@@ -350,30 +356,24 @@ BOOL isBlockedPath(const char *path) {
     if (!isCalledFromBeReal()) return NO;
     
     NSString *pathStr = @(path);
+    if (!pathStr || pathStr.length == 0) return NO;
     
     // Don't block paths that the tweak itself might need
     if ([pathStr containsString:@"Bea.bundle"] || 
-        [pathStr containsString:@"MiniBea"]) {
+        [pathStr containsString:@"MiniBea"] ||
+        [pathStr containsString:@"BeReal.app"]) {
         return NO;
     }
     
     NSArray *jbPaths = @[
-        // Classic jailbreak paths
+        // Classic jailbreak paths (rootful)
         @"/Applications/Cydia.app",
         @"/Applications/Sileo.app",
         @"/Applications/Zebra.app",
         @"/Applications/Filza.app",
         @"/Applications/Installer.app",
         @"/Applications/NewTerm.app",
-        @"/Applications/blackra1n.app",
-        @"/Applications/FakeCarrier.app",
-        @"/Applications/Icy.app",
-        @"/Applications/IntelliScreen.app",
-        @"/Applications/MxTube.app",
-        @"/Applications/RockApp.app",
-        @"/Applications/SBSettings.app",
-        @"/Applications/WinterBoard.app",
-        // Substrate/Substitute
+        // Substrate/Substitute (rootful)
         @"/Library/MobileSubstrate/MobileSubstrate.dylib",
         @"/Library/MobileSubstrate/DynamicLibraries",
         @"/usr/lib/libhooker.dylib",
@@ -381,14 +381,20 @@ BOOL isBlockedPath(const char *path) {
         // System daemons
         @"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
         @"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
-        // Unix binaries that indicate jailbreak
+        // Unix binaries that indicate jailbreak (rootful)
         @"/bin/bash",
         @"/usr/sbin/sshd",
         @"/usr/bin/sshd",
         @"/etc/apt",
         // Test files
         @"/private/jailbreak.test",
-        @"/var/tmp/cydia.log"
+        @"/var/tmp/cydia.log",
+        // Rootless jailbreak paths
+        @"/var/jb/Applications/Cydia.app",
+        @"/var/jb/Applications/Sileo.app",
+        @"/var/jb/Applications/Zebra.app",
+        @"/var/jb/usr/lib/libhooker.dylib",
+        @"/var/jb/usr/lib/libsubstitute.dylib"
     ];
 
     for (NSString *jbPath in jbPaths) {
@@ -397,14 +403,7 @@ BOOL isBlockedPath(const char *path) {
         }
     }
     
-    // Check for common jailbreak-related substrings (but not ones that affect tweaks)
-    NSArray *jbSubstrings = @[@"cydia", @"sileo", @"zebra", @"jailbreak"];
-    for (NSString *substr in jbSubstrings) {
-        if ([pathStr.lowercaseString containsString:substr]) {
-            return YES;
-        }
-    }
-    
+    // Only block exact paths - substring matching can break tweak loading
     return NO;
 }
 
@@ -498,13 +497,22 @@ BOOL isBlockedPath(const char *path) {
 
 %ctor {
 	// Dynamically assign Swift mangled class names to short hook names
+	// Use NSClassFromString which is safer and returns nil gracefully
+	Class jailbreakCheckClass = NSClassFromString(@"_TtC6BeReal14JailbreakCheck");
+	Class homeViewClass = NSClassFromString(@"_TtC6BeReal25HomeViewHostingController");
+	Class mediaViewClass = NSClassFromString(@"_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_");
+	Class doubleMediaClass = NSClassFromString(@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl");
+	Class doubleMediaLegacyClass = NSClassFromString(@"_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView");
+	Class blurStateClass = NSClassFromString(@"_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl");
+	Class advertClass = NSClassFromString(@"_TtC11AdvertsData25AdvertNativeViewContainer");
+	
 	%init(
-		BeaJailbreakCheck = objc_getClass("_TtC6BeReal14JailbreakCheck"),
-		HomeViewHostingController = objc_getClass("_TtC6BeReal25HomeViewHostingController"),
-		MediaViewHosting = objc_getClass("_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_"),
-		DoubleMediaViewUIKitLegacyImpl = objc_getClass("_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl"),
-		DoubleMediaViewLegacy = objc_getClass("_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView"),
-		BlurStateUseCaseImpl = objc_getClass("_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl"),
-		AdvertNativeViewContainer = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer")
+		BeaJailbreakCheck = jailbreakCheckClass ?: [NSObject class],
+		HomeViewHostingController = homeViewClass ?: [NSObject class],
+		MediaViewHosting = mediaViewClass ?: [NSObject class],
+		DoubleMediaViewUIKitLegacyImpl = doubleMediaClass ?: [NSObject class],
+		DoubleMediaViewLegacy = doubleMediaLegacyClass ?: [NSObject class],
+		BlurStateUseCaseImpl = blurStateClass ?: [NSObject class],
+		AdvertNativeViewContainer = advertClass ?: [NSObject class]
 	);
 }
