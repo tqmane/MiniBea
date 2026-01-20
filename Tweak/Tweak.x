@@ -289,7 +289,7 @@
 
 		[NSLayoutConstraint activateConstraints:@[
 			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
-			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self bottomAnchor] constant:-12],
+			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self topAnchor] constant:48],
 			[[downloadButton widthAnchor] constraintEqualToConstant:32],
 			[[downloadButton heightAnchor] constraintEqualToConstant:32]
 		]];
@@ -342,23 +342,8 @@
 // FILE SYSTEM JAILBREAK DETECTION BYPASS
 // ============================================
 
-// Helper to check if current call is from BeReal bundle
-static BOOL isCalledFromBeReal(void) {
-    static BOOL cached = NO;
-    static BOOL isBeReal = NO;
-    if (!cached) {
-        NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
-        isBeReal = [bundleId isEqualToString:@"AlexisBarreyat.BeReal"];
-        cached = YES;
-    }
-    return isBeReal;
-}
-
 BOOL isBlockedPath(const char *path) {
     if (!path) return NO;
-    
-    // Only block paths when called from BeReal
-    if (!isCalledFromBeReal()) return NO;
     
     NSString *pathStr = @(path);
     if (!pathStr || pathStr.length == 0) return NO;
@@ -370,9 +355,14 @@ BOOL isBlockedPath(const char *path) {
         return NO;
     }
 
-    // ROOTLESS JAILBREAK DETECTION
-    // Block any path starting with /var/jb
-    if ([pathStr hasPrefix:@"/var/jb"]) {
+    // Prefix checks (Rootless & Legacy)
+    if ([pathStr hasPrefix:@"/var/jb"] ||
+        [pathStr hasPrefix:@"/private/preboot/"] ||
+        [pathStr hasPrefix:@"/private/var/jb"] ||
+        [pathStr hasPrefix:@"/private/var/lib/apt"] ||
+        [pathStr hasPrefix:@"/private/var/lib/cydia"] ||
+        [pathStr hasPrefix:@"/private/var/stash"] ||
+        [pathStr hasPrefix:@"/private/var/tmp/cydia"]) {
         return YES;
     }
     
