@@ -7,6 +7,10 @@
 #import "fishhook/fishhook.h"
 #endif
 
+// Version info for BeReal 4.58.0 compatibility
+#define TWEAK_VERSION @"0.3.0"
+#define BEREAL_MIN_VERSION @"4.58.0"
+
 NSDictionary *headers;
 
 // ============================================

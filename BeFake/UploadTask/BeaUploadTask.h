@@ -11,6 +11,7 @@
 @property (nonatomic, strong) NSString *region;
 @property (nonatomic, strong) NSDictionary *headers;
 - (void)uploadBeRealWithCompletion:(void (^)(BOOL success, NSError *error))completion;
+- (void)tryLegacyUploadWithCompletion:(void (^)(BOOL success, NSError *error))completion;
 - (void)makePUTRequestWithData:(NSDictionary *)data completion:(void (^)(BOOL success, NSError *error))completion;
 - (void)putPhotoWithURL:(NSURL *)url headers:(NSDictionary *)headers imageData:(NSData *)imageData completion:(void (^)(BOOL success))completion;
 - (void)postBeRealWithFrontPath:(NSString *)frontPath backPath:(NSString *)backPath frontBucket:(NSString *)frontBucket backBucket:(NSString *)backBucket completion:(void (^)(BOOL success, NSError *error))completion;

@@ -59,7 +59,42 @@ NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
 
     [self getRegion];
 
-    // create the first request
+    // BeReal 4.58.0 uses a new endpoint for multi-format uploads
+    // Try new endpoint first, fallback to legacy endpoint if needed
+    NSURL *uploadRequestURL = [NSURL URLWithString:@"https://mobile-l7.bereal.com/api/content/posts/multi-format-upload-url?mimeType=image/webp"];
+    NSMutableURLRequest *uploadRequest = [NSMutableURLRequest requestWithURL:uploadRequestURL];
+    [uploadRequest setHTTPMethod:@"GET"];
+    
+    // Add updated headers for BeReal 4.58.0
+    [self.headers enumerateKeysAndObjectsUsingBlock:^(NSString *field, NSString *value, BOOL *stop) {
+        [uploadRequest setValue:value forHTTPHeaderField:field];
+    }];
+    
+    // Add additional headers that may be required in newer versions
+    NSString *osVersion = [[UIDevice currentDevice] systemVersion];
+    [uploadRequest setValue:@"4.58.0-(458000)" forHTTPHeaderField:@"bereal-app-version"];
+    [uploadRequest setValue:osVersion forHTTPHeaderField:@"bereal-os-version"];
+    [uploadRequest setValue:[[NSTimeZone localTimeZone] name] forHTTPHeaderField:@"bereal-timezone"];
+
+    NSURLSession *session = [NSURLSession sharedSession];
+    NSURLSessionDataTask *uploadRequestTask = [session dataTaskWithRequest:uploadRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *getError) {
+        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+        NSDictionary *uploadRequestResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        
+        // If new endpoint fails, try legacy endpoint
+        if (httpResponse.statusCode == 404 || uploadRequestResponse[@"error"] || getError) {
+            [self tryLegacyUploadWithCompletion:completion];
+        } else {
+            [self makePUTRequestWithData:uploadRequestResponse completion:completion];
+        } 
+    }];
+
+    [uploadRequestTask resume];
+
+}
+
+// Fallback to legacy upload-url endpoint for older API versions
+- (void)tryLegacyUploadWithCompletion:(void (^)(BOOL success, NSError *error))completion {
     NSURL *uploadRequestURL = [NSURL URLWithString:@"https://mobile-l7.bereal.com/api/content/posts/upload-url?mimeType=image/webp"];
     NSMutableURLRequest *uploadRequest = [NSMutableURLRequest requestWithURL:uploadRequestURL];
     [uploadRequest setHTTPMethod:@"GET"];
@@ -79,7 +114,6 @@ NSData* compressImage(UIImage *image, NSUInteger targetDataSize) {
     }];
 
     [uploadRequestTask resume];
-
 }
 
 - (void)makePUTRequestWithData:(NSDictionary *)response completion:(void (^)(BOOL success, NSError *error))completion {
