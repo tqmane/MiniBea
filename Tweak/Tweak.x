@@ -9,7 +9,6 @@
 // GLOBAL ASSOCIATED OBJECT KEYS
 // ============================================
 static char kMinibeaDownloadButtonKey;
-static char kMinibeaCheckedKey;
 
 // ============================================
 // JAILBREAK DETECTION BYPASS - BeReal 4.58.0
@@ -540,123 +539,6 @@ static BOOL isBlockedPath(const char *path) {
 }
 %end
 
-// BeReal 4.58.0 - UIImageView hook for all post images
-// SDAnimatedImageView extends UIImageView, so this catches both
-%hook UIImageView
-
-- (void)layoutSubviews {
-	%orig;
-	
-	// Use global associated object keys
-	NSNumber *checked = objc_getAssociatedObject(self, &kMinibeaCheckedKey);
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
-	
-	// Skip if already processed
-	if ([checked boolValue]) {
-		if (existingButton) {
-			[self bringSubviewToFront:existingButton];
-		}
-		return;
-	}
-	
-	// Check size - post images are typically 150+ in at least one dimension
-	CGSize size = self.frame.size;
-	
-	// Skip very small views (icons, avatars, etc.)
-	if (size.width < 120 || size.height < 120) {
-		return;
-	}
-	
-	// Skip if no image loaded yet
-	if (!self.image) return;
-	
-	// Mark as checked
-	objc_setAssociatedObject(self, &kMinibeaCheckedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-	
-	// Check parent hierarchy for post-related views
-	BOOL isPostImage = NO;
-	UIView *checkView = [self superview];
-	NSString *selfClass = NSStringFromClass([self class]);
-	int depth = 0;
-	
-	// SDAnimatedImageView is a strong signal
-	if ([selfClass containsString:@"SDAnimatedImageView"] ||
-		[selfClass containsString:@"SDImage"]) {
-		isPostImage = YES;
-	}
-	
-	// Also check parent hierarchy
-	while (checkView && depth < 20 && !isPostImage) {
-		NSString *parentClass = NSStringFromClass([checkView class]);
-		
-		if ([parentClass containsString:@"POV"] ||
-			[parentClass containsString:@"Post"] ||
-			[parentClass containsString:@"Feed"] ||
-			[parentClass containsString:@"DoubleMedia"] ||
-			[parentClass containsString:@"MediaView"] ||
-			[parentClass containsString:@"SwiftUI"] ||
-			[parentClass containsString:@"Hosting"]) {
-			isPostImage = YES;
-			break;
-		}
-		
-		// Check if inside a UICollectionView or UITableView
-		if ([checkView isKindOfClass:[UICollectionViewCell class]] ||
-			[checkView isKindOfClass:[UITableViewCell class]]) {
-			isPostImage = YES;
-			break;
-		}
-		
-		checkView = [checkView superview];
-		depth++;
-	}
-	
-	if (!isPostImage) return;
-	
-	// Skip if already has our button
-	if (existingButton) return;
-	
-	NSLog(@"[MiniBea] Adding download button to %@ (size: %.0fx%.0f)", selfClass, size.width, size.height);
-	
-	BeaButton *downloadButton = [BeaButton downloadButton];
-	objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-	[self setUserInteractionEnabled:YES];
-	[self setClipsToBounds:NO]; // Ensure button isn't clipped
-	[self addSubview:downloadButton];
-	
-	// Position in top-right corner inside the image
-	[NSLayoutConstraint activateConstraints:@[
-		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:10],
-		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-10],
-		[[downloadButton widthAnchor] constraintEqualToConstant:32],
-		[[downloadButton heightAnchor] constraintEqualToConstant:32]
-	]];
-	
-	downloadButton.layer.zPosition = 9999;
-	[self bringSubviewToFront:downloadButton];
-}
-
-- (void)setImage:(UIImage *)image {
-	%orig;
-	// Reset when image changes to allow button re-evaluation
-	if (image) {
-		objc_setAssociatedObject(self, &kMinibeaCheckedKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-		[self setNeedsLayout];
-	}
-}
-
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
-	if (existingButton) {
-		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
-		if ([existingButton pointInside:buttonPoint withEvent:event]) {
-			return existingButton;
-		}
-	}
-	return %orig;
-}
-%end
-
 // BeReal 4.58.0 - BlurStateUseCaseImpl controls whether posts are blurred
 %hook BlurStateUseCaseImpl
 - (BOOL)isBlurred {
@@ -695,6 +577,116 @@ static BOOL isBlockedPath(const char *path) {
 %end
 
 %end // end group BeRealSwiftHooks
+
+
+// ============================================
+// SDANIMATEDIMAGEVIEW HOOKS GROUP
+// ============================================
+%group SDImageHooks
+
+// SDAnimatedImageView - Direct hook for post images
+%hook SDAnimatedImageView
+
+- (void)didMoveToSuperview {
+	%orig;
+	
+	UIView *selfView = (UIView *)self;
+	if (![selfView superview]) return;
+	
+	// Delay to ensure view hierarchy is ready
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[self performSelector:@selector(minibeaCheckAndAddButton)];
+	});
+}
+
+- (void)didMoveToWindow {
+	%orig;
+	
+	UIView *selfView = (UIView *)self;
+	if (![selfView window]) return;
+	
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[self performSelector:@selector(minibeaCheckAndAddButton)];
+	});
+}
+
+%new
+- (void)minibeaCheckAndAddButton {
+	UIImageView *selfView = (UIImageView *)self;
+	
+	// Check if already has button
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
+	if (existingButton) {
+		[selfView bringSubviewToFront:existingButton];
+		return;
+	}
+	
+	// Check size - post images are typically large
+	CGSize size = selfView.frame.size;
+	if (size.width < 100 || size.height < 100) return;
+	
+	// Check if image is loaded
+	if (!selfView.image) return;
+	
+	// Check parent hierarchy for post-related views
+	BOOL isPostImage = NO;
+	UIView *checkView = [selfView superview];
+	int depth = 0;
+	
+	while (checkView && depth < 25) {
+		NSString *parentClass = NSStringFromClass([checkView class]);
+		
+		if ([parentClass containsString:@"POV"] ||
+			[parentClass containsString:@"Post"] ||
+			[parentClass containsString:@"Feed"] ||
+			[parentClass containsString:@"DoubleMedia"] ||
+			[parentClass containsString:@"Media"] ||
+			[parentClass containsString:@"Cell"]) {
+			isPostImage = YES;
+			break;
+		}
+		
+		checkView = [checkView superview];
+		depth++;
+	}
+	
+	if (!isPostImage) return;
+	
+	NSLog(@"[MiniBea] SDAnimatedImageView: Adding download button (size: %.0fx%.0f)", size.width, size.height);
+	
+	BeaButton *downloadButton = [BeaButton downloadButton];
+	objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	
+	[selfView setUserInteractionEnabled:YES];
+	[selfView addSubview:downloadButton];
+	
+	// Position in top-right corner
+	[NSLayoutConstraint activateConstraints:@[
+		[[downloadButton topAnchor] constraintEqualToAnchor:[selfView topAnchor] constant:10],
+		[[downloadButton trailingAnchor] constraintEqualToAnchor:[selfView trailingAnchor] constant:-10],
+		[[downloadButton widthAnchor] constraintEqualToConstant:32],
+		[[downloadButton heightAnchor] constraintEqualToConstant:32]
+	]];
+	
+	downloadButton.layer.zPosition = 9999;
+	[selfView bringSubviewToFront:downloadButton];
+}
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+	UIView *selfView = (UIView *)self;
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
+	if (existingButton) {
+		CGPoint buttonPoint = [existingButton convertPoint:point fromView:selfView];
+		if ([existingButton pointInside:buttonPoint withEvent:event]) {
+			return existingButton;
+		}
+	}
+	return %orig;
+}
+
+%end
+
+%end // end group SDImageHooks
 
 
 // ============================================
@@ -795,5 +787,14 @@ static BOOL isBlockedPath(const char *path) {
             MediaViewHosting = safeMediaView, 
             DoubleMediaViewLegacy = safeDoubleMediaLegacy
         );
+    }
+    
+    // SDAnimatedImageView hooks for download button on posts
+    Class sdAnimatedImageViewClass = NSClassFromString(@"SDAnimatedImageView");
+    if (sdAnimatedImageViewClass) {
+        NSLog(@"[MiniBea] Initializing SDAnimatedImageView hooks");
+        %init(SDImageHooks, SDAnimatedImageView = sdAnimatedImageViewClass);
+    } else {
+        NSLog(@"[MiniBea] WARNING: SDAnimatedImageView class not found!");
     }
 }
