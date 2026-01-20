@@ -8,7 +8,4 @@
 @property (nonatomic, strong) UILabel *versionLabel;
 @end
 
-// Shared version definition
-#ifndef TWEAK_VERSION
-#define TWEAK_VERSION @"0.3.0"
-#endif
+#define TWEAK_VERSION @"1.3.7"

@@ -46,21 +46,16 @@
     NSMutableURLRequest *refreshTokenRequest = [NSMutableURLRequest requestWithURL:refreshURL];
     [refreshTokenRequest setHTTPMethod:@"GET"];
 
-    // Get OS version dynamically
-    NSString *osVersion = [[UIDevice currentDevice] systemVersion];
-    NSString *userAgent = [NSString stringWithFormat:@"BeReal/4.58.0 (AlexisBarreyat.BeReal; build:458000; iOS %@) 1.0.0/BRApiKit", osVersion];
-    
     NSDictionary *headers = @{
         @"authorization": BRAccessToken,
         @"accept": @"*/*",
         @"bereal-platform": @"iOS",
-        @"bereal-os-version": osVersion,
+        @"bereal-os-version": @"14.7.1",
         @"accept-Language": @"en-US;q=1.0",
-        @"user-Agent": userAgent,
+        @"user-Agent": @"BeReal/1.7.0 (AlexisBarreyat.BeReal; build:11001; iOS 14.7.1) 1.0.0/BRApiKit",
         @"bereal-app-language": @"en-US",
         @"bereal-device-language": @"en",
-        @"bereal-app-version": @"4.58.0-(458000)",
-        @"bereal-timezone": [[NSTimeZone localTimeZone] name]
+        @"bereal-app-version" : @"1.7.0-(11001)"
     };
 
     [headers enumerateKeysAndObjectsUsingBlock:^(NSString *field, NSString *value, BOOL *stop) {
