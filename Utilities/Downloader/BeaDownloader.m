@@ -7,31 +7,42 @@
 
     UIView *superview = button.superview;
 
-    NSMutableArray *foundImageViews = [NSMutableArray array];
-    
-    // For BeReal 4.58.0 - DoubleMediaViewUIKitLegacyImpl structure
-    // Search directly in the superview for SDAnimatedImageView
-    [self findViewsOfClass:@"SDAnimatedImageView" inView:superview result:foundImageViews];
-    
-    // If not found, try the old structure
-    if ([foundImageViews count] == 0) {
-        UIView *root = superview.subviews.firstObject.subviews.firstObject;
-        [self findViewsOfClass:@"SDAnimatedImageView" inView:root result:foundImageViews];
+    // First check if superview itself is an ImageView (SDAnimatedImageView hook case)
+    if ([superview isKindOfClass:[UIImageView class]]) {
+        imageView = (UIImageView *)superview;
+        NSLog(@"[MiniBea] Download: Found image from parent ImageView");
     }
     
-    // Try alternative image view classes
-    if ([foundImageViews count] == 0) {
-        [self findViewsOfClass:@"UIImageView" inView:superview result:foundImageViews];
+    // If parent isn't an ImageView, search for SDAnimatedImageView in hierarchy
+    if (!imageView || !imageView.image) {
+        NSMutableArray *foundImageViews = [NSMutableArray array];
+        
+        // For BeReal 4.58.0 - DoubleMediaViewUIKitLegacyImpl structure
+        // Search directly in the superview for SDAnimatedImageView
+        [self findViewsOfClass:@"SDAnimatedImageView" inView:superview result:foundImageViews];
+        
+        // If not found, try the old structure
+        if ([foundImageViews count] == 0) {
+            UIView *root = superview.subviews.firstObject.subviews.firstObject;
+            [self findViewsOfClass:@"SDAnimatedImageView" inView:root result:foundImageViews];
+        }
+        
+        // Try alternative image view classes
+        if ([foundImageViews count] == 0) {
+            [self findViewsOfClass:@"UIImageView" inView:superview result:foundImageViews];
+        }
+
+        imageView = foundImageViews.firstObject;
+        NSLog(@"[MiniBea] Download: Found image from search (%lu results)", (unsigned long)[foundImageViews count]);
     }
 
-    imageView = foundImageViews.firstObject;
-
-	if (imageView) {
+	if (imageView && imageView.image) {
 		UIImage *imageToSave = imageView.image;
-		if (imageToSave) {
-			UIImageWriteToSavedPhotosAlbum(imageToSave, self, @selector(image:didFinishSavingWithError:contextInfo:), (__bridge void *)button);
-		}
-	}
+		NSLog(@"[MiniBea] Download: Saving image %@", NSStringFromCGSize(imageToSave.size));
+		UIImageWriteToSavedPhotosAlbum(imageToSave, self, @selector(image:didFinishSavingWithError:contextInfo:), (__bridge void *)button);
+	} else {
+        NSLog(@"[MiniBea] Download: No image found to save");
+    }
 }
 
 + (void)findViewsOfClass:(NSString *)className inView:(UIView *)view result:(NSMutableArray *)result {

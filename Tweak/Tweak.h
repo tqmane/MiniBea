@@ -105,13 +105,14 @@ NSDictionary *headers;
 @property (nonatomic, strong) UIImageView *secondaryImageView;
 @end
 
-// Legacy MediaView for older versions
-@interface MediaView : UIView
+// SDAnimatedImageView from SDWebImage - used to display feed post images
+@interface SDAnimatedImageView : UIImageView
 @property (nonatomic, strong) BeaButton *downloadButton;
+@property (nonatomic, assign) BOOL hasCheckedForButton;
 @end
 
-// SwiftUI _UIHostingView for post images
-@interface _UIHostingView : UIView
+// Legacy MediaView for older versions
+@interface MediaView : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
 @end
 

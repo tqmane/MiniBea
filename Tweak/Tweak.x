@@ -276,13 +276,35 @@ static BOOL isBlockedPath(const char *path) {
 	
 	// Check if this is a BeReal API request with authorization
 	if ([[arg1 allKeys] containsObject:@"Authorization"] && 
-		[[arg1 allKeys] containsObject:@"bereal-device-id"] && 
-		!headers) {
+		[[arg1 allKeys] containsObject:@"bereal-device-id"]) {
 		if ([arg1[@"Authorization"] length] > 0) {
-			headers = (NSDictionary *)arg1;
+			// Always update headers to ensure we have the latest token
+			headers = [arg1 copy];
 			[[BeaTokenManager sharedInstance] setHeaders:headers];
-			NSLog(@"[MiniBea] Captured BeReal authorization headers");
+			NSLog(@"[MiniBea] Captured BeReal authorization headers (setAllHTTPHeaderFields)");
 		}
+	}
+}
+
+- (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
+	%orig;
+	
+	// Also capture when setting Authorization header individually
+	if ([field isEqualToString:@"Authorization"] && [value length] > 0) {
+		NSMutableDictionary *existingHeaders = [[[BeaTokenManager sharedInstance] headers] mutableCopy] ?: [NSMutableDictionary dictionary];
+		existingHeaders[@"Authorization"] = value;
+		[[BeaTokenManager sharedInstance] setHeaders:existingHeaders];
+		headers = existingHeaders;
+		NSLog(@"[MiniBea] Captured BeReal Authorization header (setValue:forHTTPHeaderField:)");
+	}
+	
+	// Capture device ID as well
+	if ([field isEqualToString:@"bereal-device-id"] && [value length] > 0) {
+		NSMutableDictionary *existingHeaders = [[[BeaTokenManager sharedInstance] headers] mutableCopy] ?: [NSMutableDictionary dictionary];
+		existingHeaders[@"bereal-device-id"] = value;
+		[[BeaTokenManager sharedInstance] setHeaders:existingHeaders];
+		headers = existingHeaders;
+		NSLog(@"[MiniBea] Captured BeReal device-id header");
 	}
 }
 %end
@@ -501,59 +523,82 @@ static BOOL isBlockedPath(const char *path) {
 }
 %end
 
-// BeReal 4.58.0 - Hook _UIHostingView to add download button to SwiftUI post views
-%hook _UIHostingView
+// BeReal 4.58.0 - SDAnimatedImageView for feed post images
+// SDAnimatedImageView is used to display all post images in the feed
+%hook SDAnimatedImageView
 %property (nonatomic, strong) BeaButton *downloadButton;
+%property (nonatomic, assign) BOOL hasCheckedForButton;
 
 - (void)layoutSubviews {
 	%orig;
 	
-	// Check if this is a post-related hosting view
-	NSString *className = NSStringFromClass([self class]);
-	
-	// Skip if already has button
-	if ([self downloadButton]) {
-		[self bringSubviewToFront:[self downloadButton]];
+	// Skip if already processed
+	if ([self hasCheckedForButton]) {
+		if ([self downloadButton]) {
+			[self bringSubviewToFront:[self downloadButton]];
+		}
 		return;
 	}
 	
-	// Check parent hierarchy for post-related views
-	BOOL isPostView = NO;
+	// Check size - post images are typically large (main image or selfie)
+	CGSize size = self.frame.size;
+	// Main post images are usually > 150x150, skip small thumbnails and icons
+	if (size.width < 100 || size.height < 100) {
+		return;
+	}
+	
+	// Skip if no image
+	if (!self.image) return;
+	
+	// Mark as checked to avoid repeated processing
+	[self setHasCheckedForButton:YES];
+	
+	// Verify this is inside a post view by checking parent hierarchy
+	BOOL isPostImage = NO;
 	UIView *checkView = [self superview];
-	for (int i = 0; i < 8 && checkView; i++) {
+	int depth = 0;
+	while (checkView && depth < 15) {
 		NSString *parentClass = NSStringFromClass([checkView class]);
-		// Look for POV (Point of View) post containers or Double media views
+		// Match post-related containers
 		if ([parentClass containsString:@"POV"] ||
+			[parentClass containsString:@"Post"] ||
+			[parentClass containsString:@"Feed"] ||
 			[parentClass containsString:@"DoubleMedia"] ||
-			[parentClass containsString:@"PostCell"] ||
-			[parentClass containsString:@"FeedPost"]) {
-			isPostView = YES;
+			[parentClass containsString:@"Cell"]) {
+			isPostImage = YES;
 			break;
 		}
 		checkView = [checkView superview];
+		depth++;
 	}
 	
-	if (!isPostView) return;
+	if (!isPostImage) return;
 	
-	// Check size - post images are typically large
-	CGSize size = self.frame.size;
-	if (size.width < 200 || size.height < 200) return;
+	// Already has button?
+	if ([self downloadButton]) return;
 	
-	NSLog(@"[MiniBea] Found post hosting view: %@ (size: %.0fx%.0f)", className, size.width, size.height);
+	NSLog(@"[MiniBea] Adding download button to SDAnimatedImageView (size: %.0fx%.0f)", size.width, size.height);
 	
 	BeaButton *downloadButton = [BeaButton downloadButton];
 	[self setDownloadButton:downloadButton];
 	[self setUserInteractionEnabled:YES];
 	[self addSubview:downloadButton];
 	
+	// Position in top-right corner
 	[NSLayoutConstraint activateConstraints:@[
-		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12],
-		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
-		[[downloadButton widthAnchor] constraintEqualToConstant:32],
-		[[downloadButton heightAnchor] constraintEqualToConstant:32]
+		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:8],
+		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-8],
+		[[downloadButton widthAnchor] constraintEqualToConstant:28],
+		[[downloadButton heightAnchor] constraintEqualToConstant:28]
 	]];
 	
 	downloadButton.layer.zPosition = 9999;
+}
+
+- (void)setImage:(UIImage *)image {
+	%orig;
+	// Reset check flag when image changes so button can be reconsidered
+	[self setHasCheckedForButton:NO];
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
