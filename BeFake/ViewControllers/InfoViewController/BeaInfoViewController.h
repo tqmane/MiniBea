@@ -7,3 +7,8 @@
 @property (nonatomic, strong) UIView *wrapperView;
 @property (nonatomic, strong) UILabel *versionLabel;
 @end
+
+// Shared version definition
+#ifndef TWEAK_VERSION
+#define TWEAK_VERSION @"0.3.0"
+#endif
