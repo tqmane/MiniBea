@@ -207,6 +207,31 @@ BOOL isBlockedPath(const char *path) {
 	return %orig;
 }
 
+// getenv hook - block DYLD_INSERT_LIBRARIES check
+%hookf(char *, getenv, const char *name) {
+	if (name) {
+		// Use C string comparison to avoid NSString overhead
+		if (strcmp(name, "DYLD_INSERT_LIBRARIES") == 0 ||
+			strcmp(name, "_MSSafeMode") == 0 ||
+			strstr(name, "SUBSTRATE") != NULL ||
+			strstr(name, "INJECT") != NULL) {
+			return NULL;
+		}
+	}
+	return %orig;
+}
+
+// ============================================
+// DYLD IMAGE DETECTION BYPASS
+// ============================================
+// Note: Direct _dyld_image_count/_dyld_get_image_name hooks removed
+// as they can cause infinite recursion. Instead, we rely on:
+// 1. File system hooks (stat, access, fopen, NSFileManager)
+// 2. SDK class hooks
+// 3. canOpenURL hooks
+// 4. The Swift JailbreakCheck class hook
+// These are sufficient for BeReal's jailbreak detection.
+
 // NSFileManager hooks
 %hook NSFileManager
 - (BOOL)fileExistsAtPath:(NSString *)path {
@@ -235,6 +260,36 @@ BOOL isBlockedPath(const char *path) {
 		return NO;
 	}
 	return %orig;
+}
+
+- (NSDictionary *)attributesOfItemAtPath:(NSString *)path error:(NSError **)error {
+	if (path && isBlockedPath([path UTF8String])) {
+		if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
+		return nil;
+	}
+	return %orig;
+}
+
+- (NSString *)destinationOfSymbolicLinkAtPath:(NSString *)path error:(NSError **)error {
+	if (path && isBlockedPath([path UTF8String])) {
+		if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:nil];
+		return nil;
+	}
+	return %orig;
+}
+
+- (NSArray *)contentsOfDirectoryAtPath:(NSString *)path error:(NSError **)error {
+	NSArray *contents = %orig;
+	if (!contents) return contents;
+	
+	NSMutableArray *filtered = [NSMutableArray array];
+	for (NSString *item in contents) {
+		NSString *fullPath = [path stringByAppendingPathComponent:item];
+		if (!isBlockedPath([fullPath UTF8String])) {
+			[filtered addObject:item];
+		}
+	}
+	return filtered;
 }
 %end
 
@@ -290,8 +345,8 @@ BOOL isBlockedPath(const char *path) {
 	[[self view] addSubview:uploadButton];
 	
 	[NSLayoutConstraint activateConstraints:@[
-		[[uploadButton topAnchor] constraintEqualToAnchor:[[self view] safeAreaLayoutGuide].topAnchor constant:10],
-		[[uploadButton leadingAnchor] constraintEqualToAnchor:[[self view] leadingAnchor] constant:16],
+		[[uploadButton topAnchor] constraintEqualToAnchor:[[self view] safeAreaLayoutGuide].topAnchor constant:8],
+		[[uploadButton trailingAnchor] constraintEqualToAnchor:[[self view] trailingAnchor] constant:-16],
 		[[uploadButton widthAnchor] constraintEqualToConstant:44],
 		[[uploadButton heightAnchor] constraintEqualToConstant:44]
 	]];
@@ -340,8 +395,8 @@ BOOL isBlockedPath(const char *path) {
 		[self addSubview:downloadButton];
 
 		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-11.6],
-			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self topAnchor] constant:47.333],
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
+			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12],
 			[[downloadButton widthAnchor] constraintEqualToConstant:32],
 			[[downloadButton heightAnchor] constraintEqualToConstant:32]
 		]];
