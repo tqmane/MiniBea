@@ -34,7 +34,7 @@
 %end
 
 // BeReal's own JailbreakCheck class (new in 4.58.0)
-%hook _TtC6BeReal14JailbreakCheck
+%hook BeaJailbreakCheck
 - (BOOL)isJailbroken {
 	return NO;
 }
@@ -117,8 +117,7 @@
 // ============================================
 
 // Updated for BeReal 4.58.0 - HomeViewHostingController replaces HomeViewController
-// Note: This uses the Objective-C visible name, Logos will find the Swift class
-%hook _TtC6BeReal25HomeViewHostingController
+%hook HomeViewHostingController
 - (void)viewDidLoad {
 	%orig;
 	
@@ -216,7 +215,7 @@
 %end
 
 // Legacy SwiftUI MediaView for older BeReal versions
-%hook _TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_
+%hook MediaViewHosting
 %property (nonatomic, strong) BeaButton *downloadButton;
 
 - (void)drawRect:(CGRect)rect {
@@ -252,7 +251,7 @@
 %end
 
 // BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents framework
-%hook _TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl
+%hook DoubleMediaViewUIKitLegacyImpl
 %property (nonatomic, strong) BeaButton *downloadButton;
 
 - (void)layoutSubviews {
@@ -467,7 +466,7 @@ BOOL isBlockedPath(const char *path) {
 // ============================================
 
 // BeReal 4.58.0 - BlurStateUseCaseImpl controls whether posts are blurred
-%hook _TtC18FeedsFeatureDomain20BlurStateUseCaseImpl
+%hook BlurStateUseCaseImpl
 - (BOOL)isBlurred {
 	return NO;
 }
@@ -483,7 +482,7 @@ BOOL isBlockedPath(const char *path) {
 // ADVERTISEMENT REMOVAL
 // ============================================
 
-%hook _TtC11AdvertsData25AdvertNativeViewContainer
+%hook AdvertNativeViewContainer
 - (void)didMoveToSuperview {
     [self removeFromSuperview];
 }
@@ -498,6 +497,13 @@ BOOL isBlockedPath(const char *path) {
 %end
 
 %ctor {
-	// Simply initialize all hooks - Logos will ignore hooks for non-existent classes
-	%init;
+	// Dynamically assign Swift mangled class names to short hook names
+	%init(
+		BeaJailbreakCheck = objc_getClass("_TtC6BeReal14JailbreakCheck"),
+		HomeViewHostingController = objc_getClass("_TtC6BeReal25HomeViewHostingController"),
+		MediaViewHosting = objc_getClass("_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_"),
+		DoubleMediaViewUIKitLegacyImpl = objc_getClass("_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl"),
+		BlurStateUseCaseImpl = objc_getClass("_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl"),
+		AdvertNativeViewContainer = objc_getClass("_TtC11AdvertsData25AdvertNativeViewContainer")
+	);
 }

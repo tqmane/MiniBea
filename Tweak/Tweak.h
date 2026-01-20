@@ -36,22 +36,14 @@ NSDictionary *headers;
 + (BOOL)isDebug;
 @end
 
-// BeReal 4.58.0 - JailbreakCheck class (Swift mangled name)
-@interface _TtC6BeReal14JailbreakCheck : NSObject
+// BeReal 4.58.0 - JailbreakCheck class
+@interface BeaJailbreakCheck : NSObject
 - (BOOL)isJailbroken;
 + (BOOL)isJailbroken;
 - (BOOL)check;
 + (BOOL)check;
 - (BOOL)isJailbreak;
 + (BOOL)isJailbreak;
-@end
-
-// Legacy JailbreakCheck interface
-@interface JailbreakCheck : NSObject
-- (BOOL)isJailbroken;
-+ (BOOL)isJailbroken;
-- (BOOL)check;
-+ (BOOL)check;
 @end
 
 // Shake SDK
@@ -80,11 +72,10 @@ NSDictionary *headers;
 // VIEW CONTROLLER CLASSES
 // ============================================
 
-// BeReal 4.58.0 - New HomeViewHostingController (Swift mangled name)
-@interface _TtC6BeReal25HomeViewHostingController : UIViewController
+// BeReal 4.58.0 - New HomeViewHostingController
+@interface HomeViewHostingController : UIViewController
 - (void)setupUploadButton;
 - (void)handleUploadTap;
-- (UIView *)view;
 @end
 
 // Legacy HomeViewController for older versions
@@ -101,18 +92,16 @@ NSDictionary *headers;
 @property (copy) NSString *name;
 @end
 
-// BeReal 4.58.0 - SwiftUI _UIHostingView (Swift mangled name)
-@interface _TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_ : UIView
+// BeReal 4.58.0 - SwiftUI _UIHostingView for media
+@interface MediaViewHosting : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
-- (NSArray *)subviews;
 @end
 
-// BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents (Swift mangled name)
-@interface _TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl : UIView
+// BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents
+@interface DoubleMediaViewUIKitLegacyImpl : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
 @property (nonatomic, strong) UIImageView *primaryImageView;
 @property (nonatomic, strong) UIImageView *secondaryImageView;
-- (NSArray *)subviews;
 @end
 
 // Legacy MediaView for older versions
@@ -128,16 +117,13 @@ NSDictionary *headers;
 // BLUR STATE CLASSES
 // ============================================
 
-// BeReal 4.58.0 - BlurStateUseCaseImpl controls post blur state (Swift mangled name)
-@interface _TtC18FeedsFeatureDomain20BlurStateUseCaseImpl : NSObject
+// BeReal 4.58.0 - BlurStateUseCaseImpl controls post blur state
+@interface BlurStateUseCaseImpl : NSObject
 - (BOOL)isBlurred;
 - (BOOL)isBlurredState;
 - (id)blurState;
 @end
 
-// Legacy BlurStateUseCaseImpl
-@interface BlurStateUseCaseImpl : NSObject
-- (BOOL)isBlurred;
-- (BOOL)isBlurredState;
-- (id)blurState;
+// BeReal 4.58.0 - AdvertNativeViewContainer
+@interface AdvertNativeViewContainer : UIView
 @end
