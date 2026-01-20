@@ -8,28 +8,45 @@
     UIView *superview = button.superview;
 
     NSMutableArray *foundImageViews = [NSMutableArray array];
-    UIView *root = superview.subviews.firstObject.subviews.firstObject;
-
-    [self findViewsOfClass:@"SDAnimatedImageView" inView:root result:foundImageViews];
+    
+    // For BeReal 4.58.0 - DoubleMediaViewUIKitLegacyImpl structure
+    // Search directly in the superview for SDAnimatedImageView
+    [self findViewsOfClass:@"SDAnimatedImageView" inView:superview result:foundImageViews];
+    
+    // If not found, try the old structure
+    if ([foundImageViews count] == 0) {
+        UIView *root = superview.subviews.firstObject.subviews.firstObject;
+        [self findViewsOfClass:@"SDAnimatedImageView" inView:root result:foundImageViews];
+    }
+    
+    // Try alternative image view classes
+    if ([foundImageViews count] == 0) {
+        [self findViewsOfClass:@"UIImageView" inView:superview result:foundImageViews];
+    }
 
     imageView = foundImageViews.firstObject;
 
 	if (imageView) {
 		UIImage *imageToSave = imageView.image;
-		UIImageWriteToSavedPhotosAlbum(imageToSave, self, @selector(image:didFinishSavingWithError:contextInfo:), (__bridge void *)button);
+		if (imageToSave) {
+			UIImageWriteToSavedPhotosAlbum(imageToSave, self, @selector(image:didFinishSavingWithError:contextInfo:), (__bridge void *)button);
+		}
 	}
 }
 
 + (void)findViewsOfClass:(NSString *)className inView:(UIView *)view result:(NSMutableArray *)result {
+    if (!view) return;
+    
     // Check if this view is of the target class
-    if ([[[view class] description] isEqualToString:className]) {
+    NSString *viewClassName = NSStringFromClass([view class]);
+    if ([viewClassName isEqualToString:className] || [viewClassName containsString:className]) {
         [result addObject:view];
     }
 
     // since we have a DoubleMediaView, there are two SDAnimatedImageViews but only one is visible at a time
     // since the SDAnimatedImageView doesn't get hidden but instead their parent's parent's parent superview
     // we need to check if the view is hidden and if it is, we don't need to check its subviews
-    if ([view alpha] == 0) {
+    if ([view alpha] == 0 || [view isHidden]) {
         return;
     }
     // Recursively check all subviews

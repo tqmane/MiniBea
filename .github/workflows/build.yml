@@ -53,34 +53,36 @@ jobs:
           ln -sfn "$SDK_DIR" "$THEOS/sdks/iPhoneOS.sdk"
           echo "SDK ready at $SDK_DIR"
 
-      - name: Build packages (include legacy 0.2 variants)
+      - name: Build packages
         run: |
           export THEOS_PLATFORM_SDK_ROOT="$THEOS/sdks/iPhoneOS18.0.sdk"
           export FAKEROOT=  # disable fakeroot on arm64e runners
           rm -rf packages
+          mkdir -p packages
 
-          echo "Build default (0.2.1) rootful"
+          echo "=== Building rootful package (arm64 + arm64e) ==="
           make clean package FINALPACKAGE=1 THEOS="$THEOS"
+          # Move and rename rootful package
+          for f in packages/*.deb; do
+            if [[ -f "$f" ]] && [[ "$f" != *"_rootful.deb" ]]; then
+              mv "$f" "${f%.deb}_rootful.deb"
+            fi
+          done
 
-          echo "Build default (0.2.1) jailed"
+          echo "=== Building rootless package (arm64 only) ==="
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless THEOS="$THEOS"
+
+          echo "=== Building jailed/sideload package ==="
           make clean package FINALPACKAGE=1 JAILED=1 THEOS="$THEOS"
-          jailed_default="packages/com.yan.minibea_0.2.1_iphoneos-arm.deb"
-          if [ -f "$jailed_default" ]; then
-            mv "$jailed_default" "${jailed_default%.deb}_jailed.deb"
+          # Rename the newest deb (jailed) to distinguish it
+          newest_deb=$(ls -t packages/*.deb 2>/dev/null | grep -v "_rootful\|_rootless" | head -1)
+          if [[ -n "$newest_deb" ]] && [[ -f "$newest_deb" ]]; then
+            mv "$newest_deb" "${newest_deb%.deb}_jailed.deb"
+            echo "Renamed jailed: $newest_deb"
           fi
 
-          echo "Build legacy v0.2 rootless (arm64)"
-          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
-
-          echo "Build legacy v0.2 jailed"
-          make clean package FINALPACKAGE=1 JAILED=1 THEOS_PACKAGE_VERSION=0.2 PACKAGE_VERSION=0.2 THEOS="$THEOS"
-          jailed_legacy="packages/com.yan.minibea_0.2_iphoneos-arm.deb"
-          if [ -f "$jailed_legacy" ]; then
-            mv "$jailed_legacy" "${jailed_legacy%.deb}_jailed.deb"
-          fi
-
-          echo "Packages produced:"
-          ls -l packages
+          echo "=== Packages produced ==="
+          ls -la packages/
 
       - name: Upload debs
         uses: actions/upload-artifact@v4
