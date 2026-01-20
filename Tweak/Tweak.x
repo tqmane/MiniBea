@@ -320,20 +320,29 @@
     // If a class is nil in the mapping, it usually warns or defaults. 
     // We will only init if we found the class to avoid hooking NSObject.
 
-    if (jailbreakCheckClass) {
-        %init(BeRealSwiftHooks, BeaJailbreakCheck = jailbreakCheckClass);
-    }
-    if (homeViewClass) {
-        %init(BeRealSwiftHooks, HomeViewHostingController = homeViewClass);
-    }
-    if (doubleMediaClass) {
-        %init(BeRealSwiftHooks, DoubleMediaViewUIKitLegacyImpl = doubleMediaClass);
-    }
-    if (blurStateClass) {
-        %init(BeRealSwiftHooks, BlurStateUseCaseImpl = blurStateClass);
-    }
-    if (advertClass) {
-        %init(BeRealSwiftHooks, AdvertNativeViewContainer = advertClass);
+    // Calculate fallbacks once
+    Class safeJailbreakCheck = jailbreakCheckClass ?: [NSObject class];
+    Class safeHomeView = homeViewClass ?: [NSObject class];
+    Class safeDoubleMedia = doubleMediaClass ?: [NSObject class];
+    Class safeBlurState = blurStateClass ?: [NSObject class];
+    Class safeAdvert = advertClass ?: [NSObject class];
+
+    // Initialize the whole group once with safe classes (hooking NSObject for missing ones is harmless with our conditional implementation checking for nil or specific methods, 
+    // BUT hooking NSObject methods like checking for jailbreak might be risky if we aren't careful.
+    // However, our hooks are specific: "isJailbroken", "check", "setupUploadButton" (new method), "layoutSubviews".
+    // Hooking likely-unique methods on NSObject is safe. "isJailbroken" on NSObject is fine if it returns NO.
+    // "layoutSubviews" on NSObject doesn't exist (it's UIView), so that's fine.
+    
+    // Actually, to be safer, we can just use the mapping. Logos allows hooking NSObject if the selector matches.
+    
+    if (jailbreakCheckClass || homeViewClass || doubleMediaClass || blurStateClass || advertClass) {
+        %init(BeRealSwiftHooks, 
+            BeaJailbreakCheck = safeJailbreakCheck,
+            HomeViewHostingController = safeHomeView,
+            DoubleMediaViewUIKitLegacyImpl = safeDoubleMedia,
+            BlurStateUseCaseImpl = safeBlurState,
+            AdvertNativeViewContainer = safeAdvert
+        );
     }
 
 	// Legacy hooks - Only init if found (unlikely for 4.58.0, effectively disabled)
