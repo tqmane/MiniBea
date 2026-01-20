@@ -96,6 +96,149 @@
 %end
 
 // ============================================
+// FILE SYSTEM JAILBREAK DETECTION BYPASS
+// ============================================
+
+// Helper function to check if a path is a jailbreak-related path
+BOOL isBlockedPath(const char *path) {
+	if (!path) return NO;
+
+	NSString *pathStr = @(path);
+	if (!pathStr || pathStr.length == 0) return NO;
+
+	// Always allow access to app's own bundle
+	if ([pathStr containsString:@"BeReal.app"]) {
+		return NO;
+	}
+
+	// Prefix checks (Rootless & Legacy)
+	if ([pathStr hasPrefix:@"/var/jb"] ||
+		[pathStr hasPrefix:@"/private/preboot/"] ||
+		[pathStr hasPrefix:@"/private/var/jb"] ||
+		[pathStr hasPrefix:@"/private/var/lib/apt"] ||
+		[pathStr hasPrefix:@"/private/var/lib/cydia"] ||
+		[pathStr hasPrefix:@"/private/var/stash"] ||
+		[pathStr hasPrefix:@"/private/var/tmp/cydia"]) {
+		return YES;
+	}
+
+	// Exact path checks
+	NSArray *jbPaths = @[
+		// Classic jailbreak paths (rootful)
+		@"/Applications/Cydia.app",
+		@"/Applications/Sileo.app",
+		@"/Applications/Zebra.app",
+		@"/Applications/Filza.app",
+		@"/Applications/Installer.app",
+		@"/Applications/NewTerm.app",
+		@"/Applications/iFile.app",
+		// Substrate/Substitute (rootful)
+		@"/Library/MobileSubstrate/MobileSubstrate.dylib",
+		@"/Library/MobileSubstrate/DynamicLibraries",
+		@"/usr/lib/libhooker.dylib",
+		@"/usr/lib/libsubstitute.dylib",
+		@"/usr/lib/substitute",
+		@"/usr/lib/substrate",
+		// System daemons
+		@"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
+		@"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
+		// Unix binaries that indicate jailbreak (rootful)
+		@"/bin/bash",
+		@"/bin/sh",
+		@"/usr/sbin/sshd",
+		@"/usr/bin/sshd",
+		@"/usr/libexec/sftp-server",
+		@"/etc/apt",
+		@"/etc/ssh/sshd_config",
+		@"/private/etc/apt",
+		@"/private/etc/ssh/sshd_config",
+		// Test files
+		@"/private/jailbreak.test",
+		@"/var/tmp/cydia.log",
+		// Additional rootless paths (explicit check just in case)
+		@"/var/jb/Applications/Cydia.app",
+		@"/var/jb/Applications/Sileo.app",
+		@"/var/jb/Applications/Zebra.app",
+		@"/var/jb/usr/lib/libhooker.dylib",
+		@"/var/jb/usr/lib/libsubstitute.dylib",
+		@"/var/jb/bin/bash",
+		@"/var/jb/bin/sh"
+	];
+
+	for (NSString *jbPath in jbPaths) {
+		if ([pathStr isEqualToString:jbPath]) {
+			return YES;
+		}
+	}
+
+	return NO;
+}
+
+// C-Level Hooks for system calls
+%hookf(int, access, const char *path, int amode) {
+	if (isBlockedPath(path)) {
+		errno = ENOENT;
+		return -1;
+	}
+	return %orig;
+}
+
+%hookf(int, stat, const char *path, struct stat *buf) {
+	if (isBlockedPath(path)) {
+		errno = ENOENT;
+		return -1;
+	}
+	return %orig;
+}
+
+%hookf(int, lstat, const char *path, struct stat *buf) {
+	if (isBlockedPath(path)) {
+		errno = ENOENT;
+		return -1;
+	}
+	return %orig;
+}
+
+%hookf(FILE *, fopen, const char *path, const char *mode) {
+	if (isBlockedPath(path)) {
+		errno = ENOENT;
+		return NULL;
+	}
+	return %orig;
+}
+
+// NSFileManager hooks
+%hook NSFileManager
+- (BOOL)fileExistsAtPath:(NSString *)path {
+	if (path && isBlockedPath([path UTF8String])) {
+		return NO;
+	}
+	return %orig;
+}
+
+- (BOOL)fileExistsAtPath:(NSString *)path isDirectory:(BOOL *)isDirectory {
+	if (path && isBlockedPath([path UTF8String])) {
+		return NO;
+	}
+	return %orig;
+}
+
+- (BOOL)isReadableFileAtPath:(NSString *)path {
+	if (path && isBlockedPath([path UTF8String])) {
+		return NO;
+	}
+	return %orig;
+}
+
+- (BOOL)isWritableFileAtPath:(NSString *)path {
+	if (path && isBlockedPath([path UTF8String])) {
+		return NO;
+	}
+	return %orig;
+}
+%end
+
+// ============================================
 // SWIFT HOOKS GROUP
 // ============================================
 %group BeRealSwiftHooks
@@ -140,14 +283,15 @@
 	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24];
 	[uploadButton setImage:[UIImage systemImageNamed:@"plus.app" withConfiguration:config] forState:UIControlStateNormal];
 	[uploadButton setTintColor:[UIColor whiteColor]];
+	uploadButton.layer.zPosition = 9999;
 	uploadButton.translatesAutoresizingMaskIntoConstraints = NO;
 	[uploadButton addTarget:self action:@selector(handleUploadTap) forControlEvents:UIControlEventTouchUpInside];
 	
 	[[self view] addSubview:uploadButton];
 	
 	[NSLayoutConstraint activateConstraints:@[
-		[[uploadButton topAnchor] constraintEqualToAnchor:[[self view] safeAreaLayoutGuide].topAnchor constant:8],
-		[[uploadButton leadingAnchor] constraintEqualToAnchor:[[self view] leadingAnchor] constant:60],
+		[[uploadButton topAnchor] constraintEqualToAnchor:[[self view] safeAreaLayoutGuide].topAnchor constant:10],
+		[[uploadButton leadingAnchor] constraintEqualToAnchor:[[self view] leadingAnchor] constant:16],
 		[[uploadButton widthAnchor] constraintEqualToConstant:44],
 		[[uploadButton heightAnchor] constraintEqualToConstant:44]
 	]];
@@ -196,8 +340,8 @@
 		[self addSubview:downloadButton];
 
 		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
-			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self topAnchor] constant:48],
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-11.6],
+			[[downloadButton bottomAnchor] constraintEqualToAnchor:[self topAnchor] constant:47.333],
 			[[downloadButton widthAnchor] constraintEqualToConstant:32],
 			[[downloadButton heightAnchor] constraintEqualToConstant:32]
 		]];
@@ -231,6 +375,16 @@
 }
 - (id)blurState {
 	return nil;
+}
+%end
+
+// BeReal 4.58.0 - NewDoubleMediaViewModel blur handling
+%hook NewDoubleMediaViewModel
+- (BOOL)isBlurred {
+	return NO;
+}
+- (BOOL)blurred {
+	return NO;
 }
 %end
 
@@ -314,6 +468,7 @@
 	Class doubleMediaClass = NSClassFromString(@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl");
 	Class blurStateClass = NSClassFromString(@"_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl");
 	Class advertClass = NSClassFromString(@"_TtC11AdvertsData25AdvertNativeViewContainer");
+	Class newDoubleMediaViewModelClass = NSClassFromString(@"_TtC14RealComponents23NewDoubleMediaViewModel");
 	
     // Init group only if critical classes are found, or init individual hooks if they exist
     // Note: %init(Group, Class=Target) initializes the *Group*. 
@@ -326,6 +481,7 @@
     Class safeDoubleMedia = doubleMediaClass ?: [NSObject class];
     Class safeBlurState = blurStateClass ?: [NSObject class];
     Class safeAdvert = advertClass ?: [NSObject class];
+	Class safeNewDoubleMediaViewModel = newDoubleMediaViewModelClass ?: [NSObject class];
 
     // Initialize the whole group once with safe classes (hooking NSObject for missing ones is harmless with our conditional implementation checking for nil or specific methods, 
     // BUT hooking NSObject methods like checking for jailbreak might be risky if we aren't careful.
@@ -335,13 +491,14 @@
     
     // Actually, to be safer, we can just use the mapping. Logos allows hooking NSObject if the selector matches.
     
-    if (jailbreakCheckClass || homeViewClass || doubleMediaClass || blurStateClass || advertClass) {
+    if (jailbreakCheckClass || homeViewClass || doubleMediaClass || blurStateClass || advertClass || newDoubleMediaViewModelClass) {
         %init(BeRealSwiftHooks, 
             BeaJailbreakCheck = safeJailbreakCheck,
             HomeViewHostingController = safeHomeView,
             DoubleMediaViewUIKitLegacyImpl = safeDoubleMedia,
             BlurStateUseCaseImpl = safeBlurState,
-            AdvertNativeViewContainer = safeAdvert
+            AdvertNativeViewContainer = safeAdvert,
+			NewDoubleMediaViewModel = safeNewDoubleMediaViewModel
         );
     }
 
@@ -349,10 +506,13 @@
 	Class mediaViewClass = NSClassFromString(@"_TtGC7SwiftUI14_UIHostingViewVS_14_ViewList_View_");
 	Class doubleMediaLegacyClass = NSClassFromString(@"_TtC7SwiftUIP33_A34643117F00277B93DEBAB70EC0697116_UIInheritedView");
 
-    if (mediaViewClass) {
-        %init(LegacySwiftHooks, MediaViewHosting = mediaViewClass);
-    }
-    if (doubleMediaLegacyClass) {
-        %init(LegacySwiftHooks, DoubleMediaViewLegacy = doubleMediaLegacyClass);
+    Class safeMediaView = mediaViewClass ?: [NSObject class];
+    Class safeDoubleMediaLegacy = doubleMediaLegacyClass ?: [NSObject class];
+
+    if (mediaViewClass || doubleMediaLegacyClass) {
+        %init(LegacySwiftHooks, 
+            MediaViewHosting = safeMediaView, 
+            DoubleMediaViewLegacy = safeDoubleMediaLegacy
+        );
     }
 }
