@@ -1,4 +1,9 @@
 #import "Tweak.h"
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
 
 // ============================================
 // JAILBREAK DETECTION BYPASS - BeReal 4.58.0
@@ -364,6 +369,12 @@ BOOL isBlockedPath(const char *path) {
         [pathStr containsString:@"BeReal.app"]) {
         return NO;
     }
+
+    // ROOTLESS JAILBREAK DETECTION
+    // Block any path starting with /var/jb
+    if ([pathStr hasPrefix:@"/var/jb"]) {
+        return YES;
+    }
     
     NSArray *jbPaths = @[
         // Classic jailbreak paths (rootful)
@@ -373,28 +384,38 @@ BOOL isBlockedPath(const char *path) {
         @"/Applications/Filza.app",
         @"/Applications/Installer.app",
         @"/Applications/NewTerm.app",
+        @"/Applications/iFile.app",
         // Substrate/Substitute (rootful)
         @"/Library/MobileSubstrate/MobileSubstrate.dylib",
         @"/Library/MobileSubstrate/DynamicLibraries",
         @"/usr/lib/libhooker.dylib",
         @"/usr/lib/libsubstitute.dylib",
+        @"/usr/lib/substitute",
+        @"/usr/lib/substrate",
         // System daemons
         @"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
         @"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
         // Unix binaries that indicate jailbreak (rootful)
         @"/bin/bash",
+        @"/bin/sh",
         @"/usr/sbin/sshd",
         @"/usr/bin/sshd",
+        @"/usr/libexec/sftp-server",
         @"/etc/apt",
+        @"/etc/ssh/sshd_config",
+        @"/private/etc/apt",
+        @"/private/etc/ssh/sshd_config",
         // Test files
         @"/private/jailbreak.test",
         @"/var/tmp/cydia.log",
-        // Rootless jailbreak paths
+        // Additional rootless paths (explicit check just in case)
         @"/var/jb/Applications/Cydia.app",
         @"/var/jb/Applications/Sileo.app",
         @"/var/jb/Applications/Zebra.app",
         @"/var/jb/usr/lib/libhooker.dylib",
-        @"/var/jb/usr/lib/libsubstitute.dylib"
+        @"/var/jb/usr/lib/libsubstitute.dylib",
+        @"/var/jb/bin/bash",
+        @"/var/jb/bin/sh"
     ];
 
     for (NSString *jbPath in jbPaths) {
@@ -403,8 +424,40 @@ BOOL isBlockedPath(const char *path) {
         }
     }
     
-    // Only block exact paths - substring matching can break tweak loading
     return NO;
+}
+
+// C-Level Hooks
+%hookf(int, access, const char *path, int amode) {
+    if (isBlockedPath(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return %orig;
+}
+
+%hookf(int, stat, const char *path, struct stat *buf) {
+    if (isBlockedPath(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return %orig;
+}
+
+%hookf(int, lstat, const char *path, struct stat *buf) {
+    if (isBlockedPath(path)) {
+        errno = ENOENT;
+        return -1;
+    }
+    return %orig;
+}
+
+%hookf(FILE *, fopen, const char *path, const char *mode) {
+    if (isBlockedPath(path)) {
+        errno = ENOENT;
+        return NULL;
+    }
+    return %orig;
 }
 
 %hook NSFileManager
