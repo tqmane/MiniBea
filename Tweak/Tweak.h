@@ -72,11 +72,11 @@ NSDictionary *headers;
 // VIEW CONTROLLER CLASSES
 // ============================================
 
-// BeReal 4.58.0 - New HomeViewHostingController
-@interface HomeViewHostingController : UIViewController
-- (void)setupUploadButton;
-- (void)handleUploadTap;
-- (UIImageView *)findLogoImageViewInView:(UIView *)view;
+// BeReal 4.58.0 - MainTabBarController for upload button
+@interface MainTabBarController : UITabBarController
+- (void)setupBeFakeUploadButton;
+- (void)handleBeFakeUploadTap;
+- (UIImageView *)findLogoInView:(UIView *)view;
 @end
 
 // Legacy HomeViewController for older versions

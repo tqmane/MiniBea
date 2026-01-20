@@ -268,120 +268,119 @@ static BOOL isBlockedPath(const char *path) {
 }
 %end
 
-// Updated for BeReal 4.58.0 - HomeViewHostingController replaces HomeViewController
-%hook HomeViewHostingController
+// BeReal 4.58.0 - MainTabBarController for upload button
+%hook MainTabBarController
 - (void)viewDidLoad {
 	%orig;
 	
-	// Find the navigation bar and add a plus button for uploads
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		[self setupUploadButton];
+	// Add upload button after a delay to ensure view hierarchy is ready
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self setupBeFakeUploadButton];
 	});
 }
 
 - (void)viewDidAppear:(BOOL)animated {
 	%orig;
 	
-	// Ensure button is set up after view appears
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		[self setupUploadButton];
+	// Re-check button setup
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self setupBeFakeUploadButton];
 	});
 }
 
 %new
-- (void)setupUploadButton {
-	// Check if already added (avoid duplicates)
-	static BOOL buttonAdded = NO;
-	if (buttonAdded) return;
+- (void)setupBeFakeUploadButton {
+	// Check if already added using tag
+	if ([[self view] viewWithTag:31415]) return;
 	
-	// Get the navigation bar
-	UINavigationBar *navBar = [[self navigationController] navigationBar];
+	// Find Home navigation controller
+	UINavigationController *homeNav = nil;
+	for (UIViewController *vc in [self viewControllers]) {
+		if ([vc isKindOfClass:[UINavigationController class]]) {
+			UINavigationController *nav = (UINavigationController *)vc;
+			NSString *className = NSStringFromClass([nav.viewControllers.firstObject class]);
+			if ([className containsString:@"Home"] || [className containsString:@"Feed"]) {
+				homeNav = nav;
+				break;
+			}
+		}
+	}
+	
+	if (!homeNav) {
+		// Fallback: use first navigation controller
+		for (UIViewController *vc in [self viewControllers]) {
+			if ([vc isKindOfClass:[UINavigationController class]]) {
+				homeNav = (UINavigationController *)vc;
+				break;
+			}
+		}
+	}
+	
+	if (!homeNav) return;
+	
+	UINavigationBar *navBar = homeNav.navigationBar;
 	if (!navBar) return;
 	
-	// Create upload button with plus icon
+	// Create upload button
 	UIButton *uploadButton = [UIButton buttonWithType:UIButtonTypeSystem];
-	uploadButton.tag = 31415; // Unique tag to identify
+	uploadButton.tag = 31415;
 	
-	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightMedium];
+	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightMedium];
 	[uploadButton setImage:[UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config] forState:UIControlStateNormal];
 	[uploadButton setTintColor:[UIColor whiteColor]];
 	uploadButton.translatesAutoresizingMaskIntoConstraints = NO;
-	[uploadButton addTarget:self action:@selector(handleUploadTap) forControlEvents:UIControlEventTouchUpInside];
+	[uploadButton addTarget:self action:@selector(handleBeFakeUploadTap) forControlEvents:UIControlEventTouchUpInside];
 	
-	// Find the titleView (BeReal. logo) in navigation bar
-	UIView *titleView = [[self navigationItem] titleView];
+	// Find logo in navigation bar
+	UIImageView *logoView = [self findLogoInView:navBar];
 	
-	if (titleView && titleView.superview) {
-		// Add button to the same container as titleView
-		UIView *titleContainer = titleView.superview;
-		[titleContainer addSubview:uploadButton];
+	if (logoView && logoView.superview) {
+		UIView *container = logoView.superview;
+		[container addSubview:uploadButton];
 		
-		// Position right next to the logo
 		[NSLayoutConstraint activateConstraints:@[
-			[[uploadButton centerYAnchor] constraintEqualToAnchor:[titleView centerYAnchor]],
-			[[uploadButton leadingAnchor] constraintEqualToAnchor:[titleView trailingAnchor] constant:6],
+			[[uploadButton centerYAnchor] constraintEqualToAnchor:[logoView centerYAnchor]],
+			[[uploadButton leadingAnchor] constraintEqualToAnchor:[logoView trailingAnchor] constant:8],
 			[[uploadButton widthAnchor] constraintEqualToConstant:28],
 			[[uploadButton heightAnchor] constraintEqualToConstant:28]
 		]];
-		buttonAdded = YES;
 	} else {
-		// Fallback: Search for logo in navigation bar view hierarchy
-		UIImageView *logoView = [self findLogoImageViewInView:navBar];
+		// Fallback: Add to top of main view
+		UIView *mainView = [self view];
+		[mainView addSubview:uploadButton];
 		
-		if (logoView && logoView.superview) {
-			UIView *logoParent = logoView.superview;
-			[logoParent addSubview:uploadButton];
-			
-			[NSLayoutConstraint activateConstraints:@[
-				[[uploadButton centerYAnchor] constraintEqualToAnchor:[logoView centerYAnchor]],
-				[[uploadButton leadingAnchor] constraintEqualToAnchor:[logoView trailingAnchor] constant:6],
-				[[uploadButton widthAnchor] constraintEqualToConstant:28],
-				[[uploadButton heightAnchor] constraintEqualToConstant:28]
-			]];
-			buttonAdded = YES;
-		} else {
-			// Last fallback: add as right bar button item
-			UIBarButtonItem *uploadBarItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config]
-																			  style:UIBarButtonItemStylePlain
-																			 target:self
-																			 action:@selector(handleUploadTap)];
-			uploadBarItem.tintColor = [UIColor whiteColor];
-			
-			NSMutableArray *rightItems = [[[self navigationItem] rightBarButtonItems] mutableCopy] ?: [NSMutableArray array];
-			[rightItems insertObject:uploadBarItem atIndex:0];
-			[[self navigationItem] setRightBarButtonItems:rightItems animated:NO];
-			buttonAdded = YES;
-		}
+		[NSLayoutConstraint activateConstraints:@[
+			[[uploadButton topAnchor] constraintEqualToAnchor:[mainView safeAreaLayoutGuide].topAnchor constant:5],
+			[[uploadButton centerXAnchor] constraintEqualToAnchor:[mainView centerXAnchor] constant:55],
+			[[uploadButton widthAnchor] constraintEqualToConstant:28],
+			[[uploadButton heightAnchor] constraintEqualToConstant:28]
+		]];
 	}
 }
 
 %new
-- (UIImageView *)findLogoImageViewInView:(UIView *)view {
-	// Look for BeReal logo image view in the navigation bar area
+- (UIImageView *)findLogoInView:(UIView *)view {
 	if ([view isKindOfClass:[UIImageView class]]) {
-		UIImageView *imageView = (UIImageView *)view;
-		CGSize size = imageView.frame.size;
-		
-		// Logo is typically small-medium sized image (around 60-120pt wide)
-		if (size.width > 40 && size.width < 150 && size.height > 15 && size.height < 50) {
-			return imageView;
+		CGSize size = view.frame.size;
+		// BeReal logo is typically 60-100pt wide
+		if (size.width > 50 && size.width < 120 && size.height > 20 && size.height < 45) {
+			return (UIImageView *)view;
 		}
 	}
-	
 	for (UIView *subview in view.subviews) {
-		UIImageView *found = [self findLogoImageViewInView:subview];
+		UIImageView *found = [self findLogoInView:subview];
 		if (found) return found;
 	}
 	return nil;
 }
 
 %new
-- (void)handleUploadTap {
+- (void)handleBeFakeUploadTap {
 	if (![[BeaTokenManager sharedInstance] BRAccessToken]) return;
-
-	BeaUploadViewController *beaUploadViewController = [[BeaUploadViewController alloc] init];
-	beaUploadViewController.modalPresentationStyle = UIModalPresentationFullScreen;
-	[self presentViewController:beaUploadViewController animated:YES completion:nil];
+	
+	BeaUploadViewController *uploadVC = [[BeaUploadViewController alloc] init];
+	uploadVC.modalPresentationStyle = UIModalPresentationFullScreen;
+	[self presentViewController:uploadVC animated:YES completion:nil];
 }
 %end
 
@@ -569,39 +568,28 @@ static BOOL isBlockedPath(const char *path) {
 
 	// Safe initialization for Swift hooks
 	Class jailbreakCheckClass = NSClassFromString(@"_TtC6BeReal14JailbreakCheck");
-	Class homeViewClass = NSClassFromString(@"_TtC6BeReal25HomeViewHostingController");
-    if (!homeViewClass) homeViewClass = NSClassFromString(@"BeReal.HomeViewHostingController"); // Fallback
+	
+	// MainTabBarController for upload button
+	Class mainTabBarClass = NSClassFromString(@"_TtC6BeReal20MainTabBarController");
+	if (!mainTabBarClass) mainTabBarClass = NSClassFromString(@"BeReal.MainTabBarController");
     
 	Class doubleMediaClass = NSClassFromString(@"_TtC14RealComponents30DoubleMediaViewUIKitLegacyImpl");
 	Class blurStateClass = NSClassFromString(@"_TtC18FeedsFeatureDomain20BlurStateUseCaseImpl");
 	Class advertClass = NSClassFromString(@"_TtC11AdvertsData25AdvertNativeViewContainer");
 	Class newDoubleMediaViewModelClass = NSClassFromString(@"_TtC14RealComponents23NewDoubleMediaViewModel");
-	
-    // Init group only if critical classes are found, or init individual hooks if they exist
-    // Note: %init(Group, Class=Target) initializes the *Group*. 
-    // If a class is nil in the mapping, it usually warns or defaults. 
-    // We will only init if we found the class to avoid hooking NSObject.
 
     // Calculate fallbacks once
     Class safeJailbreakCheck = jailbreakCheckClass ?: [NSObject class];
-    Class safeHomeView = homeViewClass ?: [NSObject class];
+    Class safeMainTabBar = mainTabBarClass ?: [NSObject class];
     Class safeDoubleMedia = doubleMediaClass ?: [NSObject class];
     Class safeBlurState = blurStateClass ?: [NSObject class];
     Class safeAdvert = advertClass ?: [NSObject class];
 	Class safeNewDoubleMediaViewModel = newDoubleMediaViewModelClass ?: [NSObject class];
-
-    // Initialize the whole group once with safe classes (hooking NSObject for missing ones is harmless with our conditional implementation checking for nil or specific methods, 
-    // BUT hooking NSObject methods like checking for jailbreak might be risky if we aren't careful.
-    // However, our hooks are specific: "isJailbroken", "check", "setupUploadButton" (new method), "layoutSubviews".
-    // Hooking likely-unique methods on NSObject is safe. "isJailbroken" on NSObject is fine if it returns NO.
-    // "layoutSubviews" on NSObject doesn't exist (it's UIView), so that's fine.
     
-    // Actually, to be safer, we can just use the mapping. Logos allows hooking NSObject if the selector matches.
-    
-    if (jailbreakCheckClass || homeViewClass || doubleMediaClass || blurStateClass || advertClass || newDoubleMediaViewModelClass) {
+    if (jailbreakCheckClass || mainTabBarClass || doubleMediaClass || blurStateClass || advertClass || newDoubleMediaViewModelClass) {
         %init(BeRealSwiftHooks, 
             BeaJailbreakCheck = safeJailbreakCheck,
-            HomeViewHostingController = safeHomeView,
+            MainTabBarController = safeMainTabBar,
             DoubleMediaViewUIKitLegacyImpl = safeDoubleMedia,
             BlurStateUseCaseImpl = safeBlurState,
             AdvertNativeViewContainer = safeAdvert,
