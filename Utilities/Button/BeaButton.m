@@ -2,23 +2,36 @@
 
 @implementation BeaButton
 + (instancetype)downloadButton {
-    BeaButton *downloadButton = [BeaButton buttonWithType:UIButtonTypeRoundedRect];
+    BeaButton *downloadButton = [BeaButton buttonWithType:UIButtonTypeCustom];
     [downloadButton setTitle:@"" forState:UIControlStateNormal];
 
-	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:19];
+	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightMedium];
 	UIImage *downloadImage = [UIImage systemImageNamed:@"arrow.down.circle.fill" withConfiguration:config];
 	downloadImage = [downloadImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 
+	// Add semi-transparent background for visibility on any image
+	downloadButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.4];
+	downloadButton.layer.cornerRadius = 16; // Half of 32pt button size
+	downloadButton.clipsToBounds = YES;
+	
+	// Add shadow for better visibility
 	downloadButton.layer.shadowColor = [[UIColor blackColor] CGColor];
-    downloadButton.layer.shadowOffset = CGSizeMake(0, 0);
-    downloadButton.layer.shadowRadius = 3;
-    downloadButton.layer.shadowOpacity = 0.5;
+    downloadButton.layer.shadowOffset = CGSizeMake(0, 1);
+    downloadButton.layer.shadowRadius = 4;
+    downloadButton.layer.shadowOpacity = 0.6;
+	downloadButton.layer.masksToBounds = NO;
 
     [downloadButton setImage:downloadImage forState:UIControlStateNormal];
     [downloadButton setTintColor:[UIColor whiteColor]];
     [downloadButton sizeToFit];
-	downloadButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentRight;
+	downloadButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
+	downloadButton.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
     downloadButton.translatesAutoresizingMaskIntoConstraints = NO;
+	
+	// Ensure button is always interactive and visible
+	downloadButton.userInteractionEnabled = YES;
+	downloadButton.alpha = 1.0;
+	
     [downloadButton addTarget:[BeaDownloader class] action:@selector(downloadImage:) forControlEvents:UIControlEventTouchUpInside];
     
     return downloadButton;

@@ -1,8 +1,9 @@
 TARGET := iphone:clang:18.0:14.0
 INSTALL_TARGET_PROCESSES = BeReal
 
-# Rootless only supports arm64
+# Support for rootless and rootful
 ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
+# Rootless only supports arm64
 ARCHS = arm64
 else
 ARCHS = arm64 arm64e

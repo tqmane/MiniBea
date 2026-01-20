@@ -274,30 +274,105 @@ static BOOL isBlockedPath(const char *path) {
 	%orig;
 	
 	// Find the navigation bar and add a plus button for uploads
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self setupUploadButton];
+	});
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+	%orig;
+	
+	// Ensure button is set up after view appears
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 		[self setupUploadButton];
 	});
 }
 
 %new
 - (void)setupUploadButton {
-	// Create upload button
+	// Check if already added (avoid duplicates)
+	static BOOL buttonAdded = NO;
+	if (buttonAdded) return;
+	
+	// Get the navigation bar
+	UINavigationBar *navBar = [[self navigationController] navigationBar];
+	if (!navBar) return;
+	
+	// Create upload button with plus icon
 	UIButton *uploadButton = [UIButton buttonWithType:UIButtonTypeSystem];
-	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24];
-	[uploadButton setImage:[UIImage systemImageNamed:@"plus.app" withConfiguration:config] forState:UIControlStateNormal];
+	uploadButton.tag = 31415; // Unique tag to identify
+	
+	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightMedium];
+	[uploadButton setImage:[UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config] forState:UIControlStateNormal];
 	[uploadButton setTintColor:[UIColor whiteColor]];
-	uploadButton.layer.zPosition = 9999;
 	uploadButton.translatesAutoresizingMaskIntoConstraints = NO;
 	[uploadButton addTarget:self action:@selector(handleUploadTap) forControlEvents:UIControlEventTouchUpInside];
 	
-	[[self view] addSubview:uploadButton];
+	// Find the titleView (BeReal. logo) in navigation bar
+	UIView *titleView = [[self navigationItem] titleView];
 	
-	[NSLayoutConstraint activateConstraints:@[
-		[[uploadButton topAnchor] constraintEqualToAnchor:[[self view] safeAreaLayoutGuide].topAnchor constant:8],
-		[[uploadButton trailingAnchor] constraintEqualToAnchor:[[self view] trailingAnchor] constant:-16],
-		[[uploadButton widthAnchor] constraintEqualToConstant:44],
-		[[uploadButton heightAnchor] constraintEqualToConstant:44]
-	]];
+	if (titleView && titleView.superview) {
+		// Add button to the same container as titleView
+		UIView *titleContainer = titleView.superview;
+		[titleContainer addSubview:uploadButton];
+		
+		// Position right next to the logo
+		[NSLayoutConstraint activateConstraints:@[
+			[[uploadButton centerYAnchor] constraintEqualToAnchor:[titleView centerYAnchor]],
+			[[uploadButton leadingAnchor] constraintEqualToAnchor:[titleView trailingAnchor] constant:6],
+			[[uploadButton widthAnchor] constraintEqualToConstant:28],
+			[[uploadButton heightAnchor] constraintEqualToConstant:28]
+		]];
+		buttonAdded = YES;
+	} else {
+		// Fallback: Search for logo in navigation bar view hierarchy
+		UIImageView *logoView = [self findLogoImageViewInView:navBar];
+		
+		if (logoView && logoView.superview) {
+			UIView *logoParent = logoView.superview;
+			[logoParent addSubview:uploadButton];
+			
+			[NSLayoutConstraint activateConstraints:@[
+				[[uploadButton centerYAnchor] constraintEqualToAnchor:[logoView centerYAnchor]],
+				[[uploadButton leadingAnchor] constraintEqualToAnchor:[logoView trailingAnchor] constant:6],
+				[[uploadButton widthAnchor] constraintEqualToConstant:28],
+				[[uploadButton heightAnchor] constraintEqualToConstant:28]
+			]];
+			buttonAdded = YES;
+		} else {
+			// Last fallback: add as right bar button item
+			UIBarButtonItem *uploadBarItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config]
+																			  style:UIBarButtonItemStylePlain
+																			 target:self
+																			 action:@selector(handleUploadTap)];
+			uploadBarItem.tintColor = [UIColor whiteColor];
+			
+			NSMutableArray *rightItems = [[[self navigationItem] rightBarButtonItems] mutableCopy] ?: [NSMutableArray array];
+			[rightItems insertObject:uploadBarItem atIndex:0];
+			[[self navigationItem] setRightBarButtonItems:rightItems animated:NO];
+			buttonAdded = YES;
+		}
+	}
+}
+
+%new
+- (UIImageView *)findLogoImageViewInView:(UIView *)view {
+	// Look for BeReal logo image view in the navigation bar area
+	if ([view isKindOfClass:[UIImageView class]]) {
+		UIImageView *imageView = (UIImageView *)view;
+		CGSize size = imageView.frame.size;
+		
+		// Logo is typically small-medium sized image (around 60-120pt wide)
+		if (size.width > 40 && size.width < 150 && size.height > 15 && size.height < 50) {
+			return imageView;
+		}
+	}
+	
+	for (UIView *subview in view.subviews) {
+		UIImageView *found = [self findLogoImageViewInView:subview];
+		if (found) return found;
+	}
+	return nil;
 }
 
 %new
@@ -338,16 +413,33 @@ static BOOL isBlockedPath(const char *path) {
 	// Add download button if not already added
 	if (![self downloadButton]) {
 		BeaButton *downloadButton = [BeaButton downloadButton];
-		downloadButton.layer.zPosition = 999;
 		[self setDownloadButton:downloadButton];
 		[self addSubview:downloadButton];
 
+		// Position at top-right corner INSIDE the image view
+		// Use padding from edges for better visibility
 		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
 			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12],
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
 			[[downloadButton widthAnchor] constraintEqualToConstant:32],
 			[[downloadButton heightAnchor] constraintEqualToConstant:32]
 		]];
+	}
+	
+	// CRITICAL: Ensure download button is ALWAYS at the front (topmost layer)
+	if ([self downloadButton]) {
+		// Remove and re-add to ensure it's on top
+		[[self downloadButton] removeFromSuperview];
+		[self addSubview:[self downloadButton]];
+		
+		// Set highest z-position
+		[self downloadButton].layer.zPosition = CGFLOAT_MAX;
+		
+		// Ensure clipsToBounds doesn't hide the button
+		[self setClipsToBounds:NO];
+		
+		// Force to front of all subviews
+		[self bringSubviewToFront:[self downloadButton]];
 	}
 	
 	// Ensure user interaction is enabled for image switching
@@ -365,6 +457,18 @@ static BOOL isBlockedPath(const char *path) {
 
 - (BOOL)isUserInteractionEnabled {
 	return YES;
+}
+
+// Ensure this view can respond to touches on download button
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+	// First check if the download button should receive the touch
+	if ([self downloadButton]) {
+		CGPoint buttonPoint = [[self downloadButton] convertPoint:point fromView:self];
+		if ([[self downloadButton] pointInside:buttonPoint withEvent:event]) {
+			return [self downloadButton];
+		}
+	}
+	return %orig;
 }
 %end
 
