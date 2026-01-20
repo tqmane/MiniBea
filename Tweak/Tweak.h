@@ -76,6 +76,7 @@ NSDictionary *headers;
 @interface HomeViewHostingController : UIViewController
 - (void)setupUploadButton;
 - (void)handleUploadTap;
+- (UIImageView *)findLogoImageViewInView:(UIView *)view;
 @end
 
 // Legacy HomeViewController for older versions
