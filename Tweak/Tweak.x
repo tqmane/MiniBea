@@ -6,6 +6,12 @@
 #include <errno.h>
 
 // ============================================
+// GLOBAL ASSOCIATED OBJECT KEYS
+// ============================================
+static char kMinibeaDownloadButtonKey;
+static char kMinibeaCheckedKey;
+
+// ============================================
 // JAILBREAK DETECTION BYPASS - BeReal 4.58.0
 // ============================================
 
@@ -475,15 +481,15 @@ static BOOL isBlockedPath(const char *path) {
 - (void)layoutSubviews {
 	%orig;
 	
-	static char kDownloadButtonKey;
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	// Use global key for associated object
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
 	
 	// Add button once in layoutSubviews for reliability
 	if (!existingButton) {
 		NSLog(@"[MiniBea] DoubleMediaViewUIKitLegacyImpl layoutSubviews - adding download button");
 		
 		BeaButton *downloadButton = [BeaButton downloadButton];
-		objc_setAssociatedObject(self, &kDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 		[self addSubview:downloadButton];
 		
 		// Position at top-right corner
@@ -523,8 +529,7 @@ static BOOL isBlockedPath(const char *path) {
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-	static char kDownloadButtonKey;
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
 	if (existingButton) {
 		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
 		if ([existingButton pointInside:buttonPoint withEvent:event]) {
@@ -542,12 +547,9 @@ static BOOL isBlockedPath(const char *path) {
 - (void)layoutSubviews {
 	%orig;
 	
-	// Use associated objects for state tracking
-	static char kDownloadButtonKey;
-	static char kCheckedKey;
-	
-	NSNumber *checked = objc_getAssociatedObject(self, &kCheckedKey);
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	// Use global associated object keys
+	NSNumber *checked = objc_getAssociatedObject(self, &kMinibeaCheckedKey);
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
 	
 	// Skip if already processed
 	if ([checked boolValue]) {
@@ -569,7 +571,7 @@ static BOOL isBlockedPath(const char *path) {
 	if (!self.image) return;
 	
 	// Mark as checked
-	objc_setAssociatedObject(self, &kCheckedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	objc_setAssociatedObject(self, &kMinibeaCheckedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 	
 	// Check parent hierarchy for post-related views
 	BOOL isPostImage = NO;
@@ -617,7 +619,7 @@ static BOOL isBlockedPath(const char *path) {
 	NSLog(@"[MiniBea] Adding download button to %@ (size: %.0fx%.0f)", selfClass, size.width, size.height);
 	
 	BeaButton *downloadButton = [BeaButton downloadButton];
-	objc_setAssociatedObject(self, &kDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	objc_setAssociatedObject(self, &kMinibeaDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 	[self setUserInteractionEnabled:YES];
 	[self setClipsToBounds:NO]; // Ensure button isn't clipped
 	[self addSubview:downloadButton];
@@ -636,17 +638,15 @@ static BOOL isBlockedPath(const char *path) {
 
 - (void)setImage:(UIImage *)image {
 	%orig;
-	// Reset when image changes
-	static char kCheckedKey;
+	// Reset when image changes to allow button re-evaluation
 	if (image) {
-		objc_setAssociatedObject(self, &kCheckedKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		objc_setAssociatedObject(self, &kMinibeaCheckedKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 		[self setNeedsLayout];
 	}
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-	static char kDownloadButtonKey;
-	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kMinibeaDownloadButtonKey);
 	if (existingButton) {
 		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
 		if ([existingButton pointInside:buttonPoint withEvent:event]) {
