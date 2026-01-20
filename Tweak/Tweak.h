@@ -110,8 +110,8 @@ NSDictionary *headers;
 @property (nonatomic, strong) BeaButton *downloadButton;
 @end
 
-// SDWebImage - SDAnimatedImageView for post images
-@interface SDAnimatedImageView : UIImageView
+// SwiftUI _UIHostingView for post images
+@interface _UIHostingView : UIView
 @property (nonatomic, strong) BeaButton *downloadButton;
 @end
 
