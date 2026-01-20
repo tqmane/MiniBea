@@ -110,6 +110,11 @@ NSDictionary *headers;
 @property (nonatomic, strong) BeaButton *downloadButton;
 @end
 
+// SDWebImage - SDAnimatedImageView for post images
+@interface SDAnimatedImageView : UIImageView
+@property (nonatomic, strong) BeaButton *downloadButton;
+@end
+
 // Legacy DoubleMediaView
 @interface DoubleMediaView : UIView
 @end

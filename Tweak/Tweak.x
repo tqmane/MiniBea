@@ -376,17 +376,59 @@ static BOOL isBlockedPath(const char *path) {
 
 %new
 - (void)handleBeFakeUploadTap {
-	if (![[BeaTokenManager sharedInstance] BRAccessToken]) return;
+	NSLog(@"[MiniBea] BeFake upload button tapped!");
 	
+	// Get the currently visible view controller
+	UIViewController *topVC = self;
+	while (topVC.presentedViewController) {
+		topVC = topVC.presentedViewController;
+	}
+	
+	// Create and present upload view controller
 	BeaUploadViewController *uploadVC = [[BeaUploadViewController alloc] init];
-	uploadVC.modalPresentationStyle = UIModalPresentationFullScreen;
-	[self presentViewController:uploadVC animated:YES completion:nil];
+	if (!uploadVC) {
+		NSLog(@"[MiniBea] ERROR: Failed to create BeaUploadViewController!");
+		return;
+	}
+	
+	NSLog(@"[MiniBea] Presenting BeaUploadViewController from %@", NSStringFromClass([topVC class]));
+	
+	// Wrap in navigation controller for better presentation
+	UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:uploadVC];
+	navController.modalPresentationStyle = UIModalPresentationFullScreen;
+	navController.navigationBarHidden = YES;
+	
+	[topVC presentViewController:navController animated:YES completion:^{
+		NSLog(@"[MiniBea] BeaUploadViewController presented successfully!");
+	}];
 }
 %end
 
 // BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents framework
 %hook DoubleMediaViewUIKitLegacyImpl
 %property (nonatomic, strong) BeaButton *downloadButton;
+
+- (void)didMoveToSuperview {
+	%orig;
+	NSLog(@"[MiniBea] DoubleMediaViewUIKitLegacyImpl didMoveToSuperview - superview: %@", [self superview]);
+	
+	// Only add button when added to superview and button doesn't exist
+	if ([self superview] && ![self downloadButton]) {
+		NSLog(@"[MiniBea] Adding download button to DoubleMediaViewUIKitLegacyImpl");
+		BeaButton *downloadButton = [BeaButton downloadButton];
+		[self setDownloadButton:downloadButton];
+		[self addSubview:downloadButton];
+		
+		// Position at top-right corner INSIDE the post image
+		[NSLayoutConstraint activateConstraints:@[
+			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:8],
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-8],
+			[[downloadButton widthAnchor] constraintEqualToConstant:28],
+			[[downloadButton heightAnchor] constraintEqualToConstant:28]
+		]];
+		NSLog(@"[MiniBea] Download button added successfully to DoubleMediaViewUIKitLegacyImpl");
+	}
+}
 
 - (void)layoutSubviews {
 	%orig;
@@ -400,58 +442,16 @@ static BOOL isBlockedPath(const char *path) {
 			[subview setHidden:YES];
 			[subview setAlpha:0];
 		}
-		// Also check nested subviews
-		for (UIView *nested in [subview subviews]) {
-			if ([NSStringFromClass([nested class]) containsString:@"Label"] ||
-				[NSStringFromClass([nested class]) containsString:@"Text"]) {
-				[nested setHidden:YES];
-			}
-		}
 	}
 
-	// Add download button if not already added
-	if (![self downloadButton]) {
-		BeaButton *downloadButton = [BeaButton downloadButton];
-		[self setDownloadButton:downloadButton];
-		[self addSubview:downloadButton];
-
-		// Position at top-right corner INSIDE the image view
-		// Use padding from edges for better visibility
-		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12],
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
-			[[downloadButton widthAnchor] constraintEqualToConstant:32],
-			[[downloadButton heightAnchor] constraintEqualToConstant:32]
-		]];
-	}
-	
-	// CRITICAL: Ensure download button is ALWAYS at the front (topmost layer)
+	// Ensure download button is always at the front
 	if ([self downloadButton]) {
-		// Remove and re-add to ensure it's on top
-		[[self downloadButton] removeFromSuperview];
-		[self addSubview:[self downloadButton]];
-		
-		// Set highest z-position
-		[self downloadButton].layer.zPosition = CGFLOAT_MAX;
-		
-		// Ensure clipsToBounds doesn't hide the button
-		[self setClipsToBounds:NO];
-		
-		// Force to front of all subviews
+		[self downloadButton].layer.zPosition = 9999;
 		[self bringSubviewToFront:[self downloadButton]];
 	}
 	
-	// Ensure user interaction is enabled for image switching
+	// Ensure user interaction is enabled
 	[self setUserInteractionEnabled:YES];
-}
-
-- (void)didMoveToSuperview {
-	%orig;
-	
-	// Trigger layout to add download button
-	if ([self superview]) {
-		[self setNeedsLayout];
-	}
 }
 
 - (BOOL)isUserInteractionEnabled {
@@ -461,6 +461,76 @@ static BOOL isBlockedPath(const char *path) {
 // Ensure this view can respond to touches on download button
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
 	// First check if the download button should receive the touch
+	if ([self downloadButton]) {
+		CGPoint buttonPoint = [[self downloadButton] convertPoint:point fromView:self];
+		if ([[self downloadButton] pointInside:buttonPoint withEvent:event]) {
+			return [self downloadButton];
+		}
+	}
+	return %orig;
+}
+%end
+
+// BeReal 4.58.0 - SDAnimatedImageView hook for download button on all post images
+%hook SDAnimatedImageView
+%property (nonatomic, strong) BeaButton *downloadButton;
+
+- (void)didMoveToSuperview {
+	%orig;
+	
+	// Only add button for post images (check if parent is related to posts/media)
+	UIView *parent = [self superview];
+	if (!parent) return;
+	
+	// Check if this is a post image by examining parent hierarchy
+	BOOL isPostImage = NO;
+	UIView *checkView = parent;
+	for (int i = 0; i < 10 && checkView; i++) {
+		NSString *className = NSStringFromClass([checkView class]);
+		if ([className containsString:@"Media"] || 
+			[className containsString:@"Post"] || 
+			[className containsString:@"Feed"] ||
+			[className containsString:@"Double"]) {
+			isPostImage = YES;
+			break;
+		}
+		checkView = [checkView superview];
+	}
+	
+	// Only proceed if this looks like a post image and is large enough
+	CGSize size = self.frame.size;
+	if (!isPostImage || size.width < 100 || size.height < 100) return;
+	
+	// Check if already has a download button
+	if ([self downloadButton]) return;
+	
+	NSLog(@"[MiniBea] Adding download button to SDAnimatedImageView (size: %.0fx%.0f)", size.width, size.height);
+	
+	BeaButton *downloadButton = [BeaButton downloadButton];
+	[self setDownloadButton:downloadButton];
+	[self setUserInteractionEnabled:YES];
+	[self addSubview:downloadButton];
+	
+	// Position at top-right corner
+	[NSLayoutConstraint activateConstraints:@[
+		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:8],
+		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-8],
+		[[downloadButton widthAnchor] constraintEqualToConstant:28],
+		[[downloadButton heightAnchor] constraintEqualToConstant:28]
+	]];
+}
+
+- (void)layoutSubviews {
+	%orig;
+	
+	// Ensure download button stays at front
+	if ([self downloadButton]) {
+		[self downloadButton].layer.zPosition = 9999;
+		[self bringSubviewToFront:[self downloadButton]];
+	}
+}
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
 	if ([self downloadButton]) {
 		CGPoint buttonPoint = [[self downloadButton] convertPoint:point fromView:self];
 		if ([[self downloadButton] pointInside:buttonPoint withEvent:event]) {

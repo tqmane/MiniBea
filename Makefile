@@ -14,7 +14,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = MiniBea
 
 $(TWEAK_NAME)_FILES = Tweak/Tweak.x $(shell find Utilities -name '*.m') $(shell find BeFake -name '*.m')
-$(TWEAK_NAME)_CFLAGS = -fobjc-arc
+$(TWEAK_NAME)_CFLAGS = -fobjc-arc -fmodules-disable-diagnostic-validation -fno-modules
 
 ifeq ($(JAILED), 1)
 $(TWEAK_NAME)_FILES += fishhook/fishhook.c SideloadFix/SideloadFix.xm
