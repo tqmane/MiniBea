@@ -176,63 +176,9 @@ static BOOL isBlockedPath(const char *path) {
 	return NO;
 }
 
-// C-Level Hooks for system calls
-%hookf(int, access, const char *path, int amode) {
-	if (isBlockedPath(path)) {
-		errno = ENOENT;
-		return -1;
-	}
-	return %orig;
-}
-
-%hookf(int, stat, const char *path, struct stat *buf) {
-	if (isBlockedPath(path)) {
-		errno = ENOENT;
-		return -1;
-	}
-	return %orig;
-}
-
-%hookf(int, lstat, const char *path, struct stat *buf) {
-	if (isBlockedPath(path)) {
-		errno = ENOENT;
-		return -1;
-	}
-	return %orig;
-}
-
-%hookf(FILE *, fopen, const char *path, const char *mode) {
-	if (isBlockedPath(path)) {
-		errno = ENOENT;
-		return NULL;
-	}
-	return %orig;
-}
-
-// getenv hook - block DYLD_INSERT_LIBRARIES check
-%hookf(char *, getenv, const char *name) {
-	if (name) {
-		// Use C string comparison to avoid NSString overhead
-		if (strcmp(name, "DYLD_INSERT_LIBRARIES") == 0 ||
-			strcmp(name, "_MSSafeMode") == 0 ||
-			strstr(name, "SUBSTRATE") != NULL ||
-			strstr(name, "INJECT") != NULL) {
-			return NULL;
-		}
-	}
-	return %orig;
-}
-
-// ============================================
-// DYLD IMAGE DETECTION BYPASS
-// ============================================
-// Note: Direct _dyld_image_count/_dyld_get_image_name hooks removed
-// as they can cause infinite recursion. Instead, we rely on:
-// 1. File system hooks (stat, access, fopen, NSFileManager)
-// 2. SDK class hooks
-// 3. canOpenURL hooks
-// 4. The Swift JailbreakCheck class hook
-// These are sufficient for BeReal's jailbreak detection.
+// NOTE: C-level hooks (access, stat, lstat, fopen, getenv) removed
+// as they can cause crashes in jailed/sideloaded environments.
+// Using only ObjC hooks which are safer.
 
 // NSFileManager hooks
 %hook NSFileManager
