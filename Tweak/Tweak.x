@@ -325,8 +325,8 @@ static BOOL isBlockedPath(const char *path) {
 - (void)viewDidLoad {
 	%orig;
 	
-	// Add upload button after a delay to ensure view hierarchy is ready
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	// Add upload button after delay for view hierarchy setup
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 		[self setupBeFakeUploadButton];
 	});
 }
@@ -334,24 +334,23 @@ static BOOL isBlockedPath(const char *path) {
 - (void)viewDidAppear:(BOOL)animated {
 	%orig;
 	
-	// Re-check button setup
-	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 		[self setupBeFakeUploadButton];
 	});
 }
 
 %new
 - (void)setupBeFakeUploadButton {
-	// Check if already added using tag
+	// Check if already added
 	if ([[self view] viewWithTag:31415]) return;
 	
-	// Find Home navigation controller
+	// Find navigation bar in home view controller
 	UINavigationController *homeNav = nil;
 	for (UIViewController *vc in [self viewControllers]) {
 		if ([vc isKindOfClass:[UINavigationController class]]) {
 			UINavigationController *nav = (UINavigationController *)vc;
 			NSString *className = NSStringFromClass([nav.viewControllers.firstObject class]);
-			if ([className containsString:@"Home"] || [className containsString:@"Feed"]) {
+			if ([className containsString:@"Home"] || [className containsString:@"Feed"] || [className containsString:@"POV"]) {
 				homeNav = nav;
 				break;
 			}
@@ -359,7 +358,7 @@ static BOOL isBlockedPath(const char *path) {
 	}
 	
 	if (!homeNav) {
-		// Fallback: use first navigation controller
+		// Use first navigation controller as fallback
 		for (UIViewController *vc in [self viewControllers]) {
 			if ([vc isKindOfClass:[UINavigationController class]]) {
 				homeNav = (UINavigationController *)vc;
@@ -374,51 +373,65 @@ static BOOL isBlockedPath(const char *path) {
 	if (!navBar) return;
 	
 	// Create upload button
-	UIButton *uploadButton = [UIButton buttonWithType:UIButtonTypeSystem];
+	UIButton *uploadButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	uploadButton.tag = 31415;
 	
-	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIImageSymbolWeightMedium];
-	[uploadButton setImage:[UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config] forState:UIControlStateNormal];
+	UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightMedium];
+	UIImage *plusImage = [UIImage systemImageNamed:@"plus.app.fill" withConfiguration:config];
+	[uploadButton setImage:plusImage forState:UIControlStateNormal];
 	[uploadButton setTintColor:[UIColor whiteColor]];
 	uploadButton.translatesAutoresizingMaskIntoConstraints = NO;
 	[uploadButton addTarget:self action:@selector(handleBeFakeUploadTap) forControlEvents:UIControlEventTouchUpInside];
 	
-	// Find logo in navigation bar
+	// Find BeReal logo imageview in the navigation bar
 	UIImageView *logoView = [self findLogoInView:navBar];
 	
 	if (logoView && logoView.superview) {
-		UIView *container = logoView.superview;
-		[container addSubview:uploadButton];
+		// Add directly to logo's superview (usually a stack view)
+		UIView *logoContainer = logoView.superview;
+		[logoContainer addSubview:uploadButton];
 		
+		// Position right next to the logo
 		[NSLayoutConstraint activateConstraints:@[
-			[[uploadButton centerYAnchor] constraintEqualToAnchor:[logoView centerYAnchor]],
-			[[uploadButton leadingAnchor] constraintEqualToAnchor:[logoView trailingAnchor] constant:8],
-			[[uploadButton widthAnchor] constraintEqualToConstant:28],
-			[[uploadButton heightAnchor] constraintEqualToConstant:28]
+			[uploadButton.centerYAnchor constraintEqualToAnchor:logoView.centerYAnchor],
+			[uploadButton.leadingAnchor constraintEqualToAnchor:logoView.trailingAnchor constant:10],
+			[uploadButton.widthAnchor constraintEqualToConstant:30],
+			[uploadButton.heightAnchor constraintEqualToConstant:30]
 		]];
+		NSLog(@"[MiniBea] Upload button added next to logo in container");
 	} else {
-		// Fallback: Add to top of main view
-		UIView *mainView = [self view];
-		[mainView addSubview:uploadButton];
+		// Alternative: Add to navigation bar directly
+		[navBar addSubview:uploadButton];
 		
+		// Center vertically in nav bar, position to the right of center
 		[NSLayoutConstraint activateConstraints:@[
-			[[uploadButton topAnchor] constraintEqualToAnchor:[mainView safeAreaLayoutGuide].topAnchor constant:5],
-			[[uploadButton centerXAnchor] constraintEqualToAnchor:[mainView centerXAnchor] constant:55],
-			[[uploadButton widthAnchor] constraintEqualToConstant:28],
-			[[uploadButton heightAnchor] constraintEqualToConstant:28]
+			[uploadButton.centerYAnchor constraintEqualToAnchor:navBar.centerYAnchor],
+			[uploadButton.centerXAnchor constraintEqualToAnchor:navBar.centerXAnchor constant:60],
+			[uploadButton.widthAnchor constraintEqualToConstant:30],
+			[uploadButton.heightAnchor constraintEqualToConstant:30]
 		]];
+		NSLog(@"[MiniBea] Upload button added to navigation bar center area");
 	}
 }
 
 %new
 - (UIImageView *)findLogoInView:(UIView *)view {
+	// Look for UIImageView that looks like the BeReal logo
 	if ([view isKindOfClass:[UIImageView class]]) {
-		CGSize size = view.frame.size;
-		// BeReal logo is typically 60-100pt wide
-		if (size.width > 50 && size.width < 120 && size.height > 20 && size.height < 45) {
-			return (UIImageView *)view;
+		UIImageView *imgView = (UIImageView *)view;
+		CGSize size = imgView.frame.size;
+		
+		// BeReal logo is typically around 60-100pt wide and 25-40pt tall
+		if (size.width > 50 && size.width < 150 && size.height > 15 && size.height < 50) {
+			// Additional check: should be horizontally centered-ish
+			CGFloat centerX = CGRectGetMidX(imgView.frame);
+			CGFloat parentWidth = imgView.superview.frame.size.width;
+			if (parentWidth > 0 && ABS(centerX - parentWidth/2) < parentWidth * 0.3) {
+				return imgView;
+			}
 		}
 	}
+	
 	for (UIView *subview in view.subviews) {
 		UIImageView *found = [self findLogoInView:subview];
 		if (found) return found;
@@ -458,51 +471,50 @@ static BOOL isBlockedPath(const char *path) {
 
 // BeReal 4.58.0 - New DoubleMediaViewUIKitLegacyImpl from RealComponents framework
 %hook DoubleMediaViewUIKitLegacyImpl
-%property (nonatomic, strong) BeaButton *downloadButton;
-
-- (void)didMoveToSuperview {
-	%orig;
-	NSLog(@"[MiniBea] DoubleMediaViewUIKitLegacyImpl didMoveToSuperview - superview: %@", [self superview]);
-	
-	// Only add button when added to superview and button doesn't exist
-	if ([self superview] && ![self downloadButton]) {
-		NSLog(@"[MiniBea] Adding download button to DoubleMediaViewUIKitLegacyImpl");
-		BeaButton *downloadButton = [BeaButton downloadButton];
-		[self setDownloadButton:downloadButton];
-		[self addSubview:downloadButton];
-		
-		// Position at top-right corner INSIDE the post image
-		[NSLayoutConstraint activateConstraints:@[
-			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:8],
-			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-8],
-			[[downloadButton widthAnchor] constraintEqualToConstant:28],
-			[[downloadButton heightAnchor] constraintEqualToConstant:28]
-		]];
-		NSLog(@"[MiniBea] Download button added successfully to DoubleMediaViewUIKitLegacyImpl");
-	}
-}
 
 - (void)layoutSubviews {
 	%orig;
+	
+	static char kDownloadButtonKey;
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	
+	// Add button once in layoutSubviews for reliability
+	if (!existingButton) {
+		NSLog(@"[MiniBea] DoubleMediaViewUIKitLegacyImpl layoutSubviews - adding download button");
+		
+		BeaButton *downloadButton = [BeaButton downloadButton];
+		objc_setAssociatedObject(self, &kDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		[self addSubview:downloadButton];
+		
+		// Position at top-right corner
+		[NSLayoutConstraint activateConstraints:@[
+			[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:12],
+			[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-12],
+			[[downloadButton widthAnchor] constraintEqualToConstant:36],
+			[[downloadButton heightAnchor] constraintEqualToConstant:36]
+		]];
+		
+		downloadButton.layer.zPosition = 99999;
+		existingButton = downloadButton;
+		NSLog(@"[MiniBea] Download button added to DoubleMediaViewUIKitLegacyImpl");
+	}
 
-	// Hide "Post to View" overlay views - find and hide blur overlays
+	// Hide blur overlays
 	for (UIView *subview in [self subviews]) {
-		// Hide blur effect views and overlay text
-		if ([NSStringFromClass([subview class]) containsString:@"Blur"] ||
-			[NSStringFromClass([subview class]) containsString:@"VisualEffect"] ||
-			[NSStringFromClass([subview class]) containsString:@"Overlay"]) {
+		NSString *className = NSStringFromClass([subview class]);
+		if ([className containsString:@"Blur"] ||
+			[className containsString:@"VisualEffect"] ||
+			[className containsString:@"Overlay"]) {
 			[subview setHidden:YES];
 			[subview setAlpha:0];
 		}
 	}
 
-	// Ensure download button is always at the front
-	if ([self downloadButton]) {
-		[self downloadButton].layer.zPosition = 9999;
-		[self bringSubviewToFront:[self downloadButton]];
+	// Ensure download button is at front
+	if (existingButton) {
+		[self bringSubviewToFront:existingButton];
 	}
 	
-	// Ensure user interaction is enabled
 	[self setUserInteractionEnabled:YES];
 }
 
@@ -510,102 +522,135 @@ static BOOL isBlockedPath(const char *path) {
 	return YES;
 }
 
-// Ensure this view can respond to touches on download button
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-	// First check if the download button should receive the touch
-	if ([self downloadButton]) {
-		CGPoint buttonPoint = [[self downloadButton] convertPoint:point fromView:self];
-		if ([[self downloadButton] pointInside:buttonPoint withEvent:event]) {
-			return [self downloadButton];
+	static char kDownloadButtonKey;
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	if (existingButton) {
+		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
+		if ([existingButton pointInside:buttonPoint withEvent:event]) {
+			return existingButton;
 		}
 	}
 	return %orig;
 }
 %end
 
-// BeReal 4.58.0 - SDAnimatedImageView for feed post images
-// SDAnimatedImageView is used to display all post images in the feed
-%hook SDAnimatedImageView
-%property (nonatomic, strong) BeaButton *downloadButton;
-%property (nonatomic, assign) BOOL hasCheckedForButton;
+// BeReal 4.58.0 - UIImageView hook for all post images
+// SDAnimatedImageView extends UIImageView, so this catches both
+%hook UIImageView
 
 - (void)layoutSubviews {
 	%orig;
 	
+	// Use associated objects for state tracking
+	static char kDownloadButtonKey;
+	static char kCheckedKey;
+	
+	NSNumber *checked = objc_getAssociatedObject(self, &kCheckedKey);
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	
 	// Skip if already processed
-	if ([self hasCheckedForButton]) {
-		if ([self downloadButton]) {
-			[self bringSubviewToFront:[self downloadButton]];
+	if ([checked boolValue]) {
+		if (existingButton) {
+			[self bringSubviewToFront:existingButton];
 		}
 		return;
 	}
 	
-	// Check size - post images are typically large (main image or selfie)
+	// Check size - post images are typically 150+ in at least one dimension
 	CGSize size = self.frame.size;
-	// Main post images are usually > 150x150, skip small thumbnails and icons
-	if (size.width < 100 || size.height < 100) {
+	
+	// Skip very small views (icons, avatars, etc.)
+	if (size.width < 120 || size.height < 120) {
 		return;
 	}
 	
-	// Skip if no image
+	// Skip if no image loaded yet
 	if (!self.image) return;
 	
-	// Mark as checked to avoid repeated processing
-	[self setHasCheckedForButton:YES];
+	// Mark as checked
+	objc_setAssociatedObject(self, &kCheckedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 	
-	// Verify this is inside a post view by checking parent hierarchy
+	// Check parent hierarchy for post-related views
 	BOOL isPostImage = NO;
 	UIView *checkView = [self superview];
+	NSString *selfClass = NSStringFromClass([self class]);
 	int depth = 0;
-	while (checkView && depth < 15) {
+	
+	// SDAnimatedImageView is a strong signal
+	if ([selfClass containsString:@"SDAnimatedImageView"] ||
+		[selfClass containsString:@"SDImage"]) {
+		isPostImage = YES;
+	}
+	
+	// Also check parent hierarchy
+	while (checkView && depth < 20 && !isPostImage) {
 		NSString *parentClass = NSStringFromClass([checkView class]);
-		// Match post-related containers
+		
 		if ([parentClass containsString:@"POV"] ||
 			[parentClass containsString:@"Post"] ||
 			[parentClass containsString:@"Feed"] ||
 			[parentClass containsString:@"DoubleMedia"] ||
-			[parentClass containsString:@"Cell"]) {
+			[parentClass containsString:@"MediaView"] ||
+			[parentClass containsString:@"SwiftUI"] ||
+			[parentClass containsString:@"Hosting"]) {
 			isPostImage = YES;
 			break;
 		}
+		
+		// Check if inside a UICollectionView or UITableView
+		if ([checkView isKindOfClass:[UICollectionViewCell class]] ||
+			[checkView isKindOfClass:[UITableViewCell class]]) {
+			isPostImage = YES;
+			break;
+		}
+		
 		checkView = [checkView superview];
 		depth++;
 	}
 	
 	if (!isPostImage) return;
 	
-	// Already has button?
-	if ([self downloadButton]) return;
+	// Skip if already has our button
+	if (existingButton) return;
 	
-	NSLog(@"[MiniBea] Adding download button to SDAnimatedImageView (size: %.0fx%.0f)", size.width, size.height);
+	NSLog(@"[MiniBea] Adding download button to %@ (size: %.0fx%.0f)", selfClass, size.width, size.height);
 	
 	BeaButton *downloadButton = [BeaButton downloadButton];
-	[self setDownloadButton:downloadButton];
+	objc_setAssociatedObject(self, &kDownloadButtonKey, downloadButton, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 	[self setUserInteractionEnabled:YES];
+	[self setClipsToBounds:NO]; // Ensure button isn't clipped
 	[self addSubview:downloadButton];
 	
-	// Position in top-right corner
+	// Position in top-right corner inside the image
 	[NSLayoutConstraint activateConstraints:@[
-		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:8],
-		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-8],
-		[[downloadButton widthAnchor] constraintEqualToConstant:28],
-		[[downloadButton heightAnchor] constraintEqualToConstant:28]
+		[[downloadButton topAnchor] constraintEqualToAnchor:[self topAnchor] constant:10],
+		[[downloadButton trailingAnchor] constraintEqualToAnchor:[self trailingAnchor] constant:-10],
+		[[downloadButton widthAnchor] constraintEqualToConstant:32],
+		[[downloadButton heightAnchor] constraintEqualToConstant:32]
 	]];
 	
 	downloadButton.layer.zPosition = 9999;
+	[self bringSubviewToFront:downloadButton];
 }
 
 - (void)setImage:(UIImage *)image {
 	%orig;
-	// Reset check flag when image changes so button can be reconsidered
-	[self setHasCheckedForButton:NO];
+	// Reset when image changes
+	static char kCheckedKey;
+	if (image) {
+		objc_setAssociatedObject(self, &kCheckedKey, @NO, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		[self setNeedsLayout];
+	}
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-	if ([self downloadButton]) {
-		CGPoint buttonPoint = [[self downloadButton] convertPoint:point fromView:self];
-		if ([[self downloadButton] pointInside:buttonPoint withEvent:event]) {
-			return [self downloadButton];
+	static char kDownloadButtonKey;
+	BeaButton *existingButton = objc_getAssociatedObject(self, &kDownloadButtonKey);
+	if (existingButton) {
+		CGPoint buttonPoint = [existingButton convertPoint:point fromView:self];
+		if ([existingButton pointInside:buttonPoint withEvent:event]) {
+			return existingButton;
 		}
 	}
 	return %orig;

@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
 #import "Utilities/Button/BeaButton.h"
 #import "BeFake/TokenManager/BeaTokenManager.h"
 #import "BeFake/ViewControllers/UploadViewController/BeaUploadViewController.h"
