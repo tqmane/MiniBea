@@ -100,77 +100,79 @@
 // ============================================
 
 // Helper function to check if a path is a jailbreak-related path
-BOOL isBlockedPath(const char *path) {
-	if (!path) return NO;
-
-	NSString *pathStr = @(path);
-	if (!pathStr || pathStr.length == 0) return NO;
-
+// IMPORTANT: This function must be pure C (no ObjC) because it's called
+// from C function hooks that may run before ObjC runtime initialization
+static BOOL isBlockedPath(const char *path) {
+	if (!path || path[0] == '\0') return NO;
+	
 	// Always allow access to app's own bundle
-	if ([pathStr containsString:@"BeReal.app"]) {
+	if (strstr(path, "BeReal.app") != NULL) {
 		return NO;
 	}
-
-	// Prefix checks (Rootless & Legacy)
-	if ([pathStr hasPrefix:@"/var/jb"] ||
-		[pathStr hasPrefix:@"/private/preboot/"] ||
-		[pathStr hasPrefix:@"/private/var/jb"] ||
-		[pathStr hasPrefix:@"/private/var/lib/apt"] ||
-		[pathStr hasPrefix:@"/private/var/lib/cydia"] ||
-		[pathStr hasPrefix:@"/private/var/stash"] ||
-		[pathStr hasPrefix:@"/private/var/tmp/cydia"]) {
-		return YES;
-	}
-
-	// Exact path checks
-	NSArray *jbPaths = @[
-		// Classic jailbreak paths (rootful)
-		@"/Applications/Cydia.app",
-		@"/Applications/Sileo.app",
-		@"/Applications/Zebra.app",
-		@"/Applications/Filza.app",
-		@"/Applications/Installer.app",
-		@"/Applications/NewTerm.app",
-		@"/Applications/iFile.app",
-		// Substrate/Substitute (rootful)
-		@"/Library/MobileSubstrate/MobileSubstrate.dylib",
-		@"/Library/MobileSubstrate/DynamicLibraries",
-		@"/usr/lib/libhooker.dylib",
-		@"/usr/lib/libsubstitute.dylib",
-		@"/usr/lib/substitute",
-		@"/usr/lib/substrate",
-		// System daemons
-		@"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
-		@"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
-		// Unix binaries that indicate jailbreak (rootful)
-		@"/bin/bash",
-		@"/bin/sh",
-		@"/usr/sbin/sshd",
-		@"/usr/bin/sshd",
-		@"/usr/libexec/sftp-server",
-		@"/etc/apt",
-		@"/etc/ssh/sshd_config",
-		@"/private/etc/apt",
-		@"/private/etc/ssh/sshd_config",
-		// Test files
-		@"/private/jailbreak.test",
-		@"/var/tmp/cydia.log",
-		// Additional rootless paths (explicit check just in case)
-		@"/var/jb/Applications/Cydia.app",
-		@"/var/jb/Applications/Sileo.app",
-		@"/var/jb/Applications/Zebra.app",
-		@"/var/jb/usr/lib/libhooker.dylib",
-		@"/var/jb/usr/lib/libsubstitute.dylib",
-		@"/var/jb/bin/bash",
-		@"/var/jb/bin/sh"
-	];
-
-	for (NSString *jbPath in jbPaths) {
-		if ([pathStr isEqualToString:jbPath]) {
+	
+	// Prefix checks using strncmp for efficiency
+	static const char *blockedPrefixes[] = {
+		"/var/jb",
+		"/private/preboot/",
+		"/private/var/jb",
+		"/private/var/lib/apt",
+		"/private/var/lib/cydia",
+		"/private/var/stash",
+		"/private/var/tmp/cydia",
+		NULL
+	};
+	
+	for (int i = 0; blockedPrefixes[i] != NULL; i++) {
+		size_t len = strlen(blockedPrefixes[i]);
+		if (strncmp(path, blockedPrefixes[i], len) == 0) {
 			return YES;
 		}
 	}
-
+	
+	// Exact path checks
+	static const char *blockedPaths[] = {
+		"/Applications/Cydia.app",
+		"/Applications/Sileo.app",
+		"/Applications/Zebra.app",
+		"/Applications/Filza.app",
+		"/Applications/Installer.app",
+		"/Applications/NewTerm.app",
+		"/Applications/iFile.app",
+		"/Library/MobileSubstrate/MobileSubstrate.dylib",
+		"/Library/MobileSubstrate/DynamicLibraries",
+		"/usr/lib/libhooker.dylib",
+		"/usr/lib/libsubstitute.dylib",
+		"/usr/lib/substitute",
+		"/usr/lib/substrate",
+		"/System/Library/LaunchDaemons/com.ikey.bbot.plist",
+		"/System/Library/LaunchDaemons/com.saurik.Cydia.Startup.plist",
+		"/bin/bash",
+		"/bin/sh",
+		"/usr/sbin/sshd",
+		"/usr/bin/sshd",
+		"/usr/libexec/sftp-server",
+		"/etc/apt",
+		"/etc/ssh/sshd_config",
+		"/private/etc/apt",
+		"/private/etc/ssh/sshd_config",
+		"/private/jailbreak.test",
+		"/var/tmp/cydia.log",
+		"/var/jb/Applications/Cydia.app",
+		"/var/jb/Applications/Sileo.app",
+		"/var/jb/Applications/Zebra.app",
+		"/var/jb/usr/lib/libhooker.dylib",
+		"/var/jb/usr/lib/libsubstitute.dylib",
+		"/var/jb/bin/bash",
+		"/var/jb/bin/sh",
+		NULL
+	};
+	
+	for (int i = 0; blockedPaths[i] != NULL; i++) {
+		if (strcmp(path, blockedPaths[i]) == 0) {
+			return YES;
+		}
+	}
+	
 	return NO;
 }
 
